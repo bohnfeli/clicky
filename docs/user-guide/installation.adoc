@@ -1,0 +1,109 @@
+= Installation Guide
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Prerequisites
+
+Before installing Clicky, ensure you have:
+
+* Rust toolchain (1.70 or later) - only if building from source
+* Terminal access
+* Git (optional, for version control integration)
+
+== Installation Methods
+
+=== Method 1: Install from crates.io (Recommended)
+
+[source,bash]
+----
+cargo install clicky
+----
+
+This downloads and installs the latest release from crates.io.
+
+=== Method 2: Build from Source
+
+[source,bash]
+----
+# Clone the repository
+git clone https://github.com/yourusername/clicky.git
+cd clicky
+
+# Build release version
+cargo build --release
+
+# Install locally
+cargo install --path .
+----
+
+=== Method 3: Download Pre-built Binary
+
+Download the appropriate binary for your platform from the releases page:
+https://github.com/yourusername/clicky/releases
+
+Then make it executable and move to your PATH:
+
+[source,bash]
+----
+# macOS/Linux
+chmod +x clicky
+mv clicky /usr/local/bin/
+
+# Windows
+# Move clicky.exe to a directory in your PATH
+----
+
+== Verify Installation
+
+Test your installation:
+
+[source,bash]
+----
+clicky --version
+----
+
+You should see output like:
+
+[source]
+----
+clicky 0.1.0
+----
+
+== Shell Completion (Optional)
+
+Enable tab completion for your shell:
+
+=== Bash
+
+[source,bash]
+----
+clicky --generate-completion bash > /etc/bash_completion.d/clicky
+----
+
+=== Zsh
+
+[source,bash]
+----
+clicky --generate-completion zsh > /usr/local/share/zsh/site-functions/_clicky
+----
+
+=== Fish
+
+[source,bash]
+----
+clicky --generate-completion fish > ~/.config/fish/completions/clicky.fish
+----
+
+== Uninstallation
+
+To remove Clicky:
+
+[source,bash]
+----
+cargo uninstall clicky
+----
+
+This removes the binary but preserves any board data in your projects.

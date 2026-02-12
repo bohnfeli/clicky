@@ -1,0 +1,376 @@
+= Testing Guide
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Testing Philosophy
+
+We follow a test-driven approach with comprehensive coverage:
+
+* **Test-Driven Development (TDD)**: Write tests before implementation
+* **Test Pyramid**: More unit tests, fewer integration tests, minimal E2E
+* **Arrange-Act-Assert**: Clear test structure
+* **Fast Feedback**: Tests should run quickly
+
+== Test Organization
+
+[source]
+----
+clicky/
+├── src/
+│   ├── domain/
+│   │   ├── board.rs          # Unit tests at bottom of file
+│   │   ├── card.rs
+│   │   └── column.rs
+│   ├── application/
+│   │   ├── board_service.rs  # Unit tests at bottom
+│   │   └── card_service.rs
+│   └── infrastructure/
+│       └── storage.rs        # Unit tests at bottom
+└── tests/
+    └── integration_tests.rs  # Integration tests (future)
+----
+
+== Running Tests
+
+=== All Tests
+
+[source,bash]
+----
+cargo test
+----
+
+=== Specific Test
+
+[source,bash]
+----
+cargo test test_create_card
+----
+
+=== With Output
+
+[source,bash]
+----
+cargo test -- --nocapture
+----
+
+=== Specific Module
+
+[source,bash]
+----
+cargo test domain::
+cargo test application::
+----
+
+=== Ignored Tests
+
+[source,bash]
+----
+cargo test -- --ignored
+----
+
+== Writing Tests
+
+=== Unit Tests
+
+Place unit tests at the bottom of the source file:
+
+[source,rust]
+----
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_descriptive_name() {
+        // Arrange - Set up test data
+        let input = "test data";
+        let expected = "expected result";
+        
+        // Act - Execute the code
+        let result = function_under_test(input);
+        
+        // Assert - Verify the outcome
+        assert_eq!(result, expected);
+    }
+}
+----
+
+=== Test Patterns
+
+==== Testing Success Cases
+
+[source,rust]
+----
+#[test]
+fn test_create_card_success() {
+    // Arrange
+    let mut board = Board::new("test".to_string(), "Test".to_string());
+    
+    // Act
+    let card_id = board.create_card(
+        "Title".to_string(),
+        Some("Desc".to_string()),
+        Some("Alice".to_string()),
+        None,
+    );
+    
+    // Assert
+    assert_eq!(card_id, "TES-001");
+    let card = board.get_card(&card_id).unwrap();
+    assert_eq!(card.title, "Title");
+    assert_eq!(card.description, Some("Desc".to_string()));
+    assert_eq!(card.assignee, Some("Alice".to_string()));
+}
+----
+
+==== Testing Error Cases
+
+[source,rust]
+----
+#[test]
+fn test_move_card_not_found() {
+    // Arrange
+    let (temp_dir, service) = setup_test_board();
+    
+    // Act
+    let result = service.move_to(temp_dir.path(), "TES-999", "done");
+    
+    // Assert
+    assert!(matches!(result, Err(CardServiceError::CardNotFound(_))));
+}
+----
+
+==== Testing with Temporary Files
+
+[source,rust]
+----
+use tempfile::TempDir;
+
+fn setup_test_board() -> (TempDir, CardService) {
+    let temp_dir = TempDir::new().unwrap();
+    let board_service = BoardService::new();
+    board_service.initialize(temp_dir.path(), Some("Test".to_string())).unwrap();
+    let card_service = CardService::new();
+    (temp_dir, card_service)
+}
+
+#[test]
+fn test_persistence() {
+    // Arrange
+    let temp_dir = TempDir::new().unwrap();
+    let service = BoardService::new();
+    
+    // Act
+    service.initialize(temp_dir.path(), None).unwrap();
+    
+    // Assert
+    assert!(service.exists(temp_dir.path()));
+    
+    // Verify by loading
+    let board = service.load(temp_dir.path()).unwrap();
+    assert_eq!(board.columns.len(), 3);
+}
+----
+
+=== Integration Tests
+
+Create integration tests in `tests/` directory:
+
+[source,rust]
+----
+// tests/cli_tests.rs
+use assert_cmd::Command;
+use predicates::prelude::*;
+use std::fs;
+use tempfile::TempDir;
+
+#[test]
+fn test_cli_init() {
+    let temp_dir = TempDir::new().unwrap();
+    
+    let mut cmd = Command::cargo_bin("clicky").unwrap();
+    cmd.current_dir(&temp_dir)
+        .arg("init")
+        .arg("--name")
+        .arg("Test Board");
+    
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Initialized board"));
+    
+    // Verify file was created
+    assert!(temp_dir.path().join(".clicky/board.json").exists());
+}
+
+#[test]
+fn test_cli_create_card() {
+    let temp_dir = TempDir::new().unwrap();
+    
+    // Initialize board first
+    let mut cmd = Command::cargo_bin("clicky").unwrap();
+    cmd.current_dir(&temp_dir).arg("init");
+    cmd.assert().success();
+    
+    // Create card
+    let mut cmd = Command::cargo_bin("clicky").unwrap();
+    cmd.current_dir(&temp_dir)
+        .arg("create")
+        .arg("Test Task");
+    
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Created card"));
+}
+----
+
+== Test Utilities
+
+=== Shared Test Helpers
+
+Create common utilities in a test support module:
+
+[source,rust]
+----
+// tests/common/mod.rs
+use tempfile::TempDir;
+use clicky::application::{BoardService, CardService};
+
+pub fn setup_board() -> (TempDir, CardService) {
+    let temp_dir = TempDir::new().unwrap();
+    let board_service = BoardService::new();
+    board_service.initialize(temp_dir.path(), Some("Test".to_string())).unwrap();
+    let card_service = CardService::new();
+    (temp_dir, card_service)
+}
+
+pub fn create_test_card(service: &CardService, path: &Path, title: &str) -> String {
+    service.create(
+        path,
+        title.to_string(),
+        None,
+        None,
+        None,
+    ).unwrap().card_id
+}
+----
+
+== Mocking
+
+=== Mock Repository
+
+For testing services without file system:
+
+[source,rust]
+----
+#[cfg(test)]
+use mockall::mock;
+
+mock! {
+    BoardRepository {}
+    
+    impl BoardRepository for BoardRepository {
+        fn load(&self, path: &Path) -> Result<Board, StorageError>;
+        fn save(&self, board: &Board, path: &Path) -> Result<(), StorageError>;
+        fn exists(&self, path: &Path) -> bool;
+    }
+}
+
+#[test]
+fn test_service_with_mock() {
+    let mut mock_repo = MockBoardRepository::new();
+    
+    mock_repo
+        .expect_load()
+        .with(predicate::eq(Path::new("/test")))
+        .times(1)
+        .returning(|_| Ok(Board::new("test".to_string(), "Test".to_string())));
+    
+    // Use mock in service
+    let service = BoardService::with_repository(mock_repo);
+    let board = service.load(Path::new("/test")).unwrap();
+    
+    assert_eq!(board.name, "Test");
+}
+----
+
+== Code Coverage
+
+=== Generate Coverage Report
+
+[source,bash]
+----
+# Install tarpaulin
+cargo install cargo-tarpaulin
+
+# Generate coverage report
+cargo tarpaulin --out Html
+
+# View report
+open tarpaulin-report.html
+----
+
+=== Coverage Goals
+
+* Domain layer: > 90%
+* Application layer: > 80%
+* Infrastructure layer: > 70%
+* Overall: > 75%
+
+== Continuous Integration
+
+Tests run automatically on:
+* Pull request creation
+* Push to main branch
+* Release tags
+
+CI pipeline includes:
+1. Format check: `cargo fmt -- --check`
+2. Linting: `cargo clippy -- -D warnings`
+3. Unit tests: `cargo test`
+4. Integration tests: `cargo test --test integration_tests`
+
+== Debugging Tests
+
+=== Print Debug Output
+
+[source,rust]
+----
+#[test]
+fn test_with_debug() {
+    let board = Board::new("test".to_string(), "Test".to_string());
+    println!("Board: {:?}", board);
+    
+    // Run with: cargo test test_with_debug -- --nocapture
+}
+----
+
+=== Use Debugger
+
+[source,bash]
+----
+# Run test in debugger
+cargo test test_name -- --exact --nocapture
+
+# Or use IDE debugger
+----
+
+== Best Practices
+
+1. **Test One Thing**: Each test should verify a single behavior
+2. **Descriptive Names**: Test names should explain what's being tested
+3. **Independent Tests**: Tests should not depend on each other
+4. **Fast Tests**: Keep tests under 100ms when possible
+5. **Clear Assertions**: Use descriptive assertion messages
+6. **Setup/Teardown**: Use fixtures for common setup
+7. **Edge Cases**: Test boundary conditions and error cases
+
+== Common Pitfalls
+
+1. **Testing Implementation**: Test behavior, not implementation details
+2. **External Dependencies**: Mock external services
+3. **Hardcoded Paths**: Use temporary directories
+4. **Shared State**: Avoid global state in tests
+5. **Flaky Tests**: Ensure tests are deterministic

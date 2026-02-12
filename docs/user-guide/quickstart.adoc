@@ -1,0 +1,199 @@
+= Quick Start Guide
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Getting Started in 5 Minutes
+
+This guide will walk you through creating your first kanban board and managing tasks.
+
+== Step 1: Initialize a Board
+
+Navigate to your project directory and initialize a board:
+
+[source,bash]
+----
+cd my-project
+clicky init
+----
+
+Or provide a custom name:
+
+[source,bash]
+----
+clicky init --name "My Awesome Project"
+----
+
+Expected output:
+
+[source]
+----
+✓ Initialized board 'My Awesome Project' in /path/to/my-project
+  Card ID prefix: MAP
+  Columns: To Do, In Progress, Done
+----
+
+== Step 2: Create Your First Card
+
+Add a task to your board:
+
+[source,bash]
+----
+clicky create "Set up project structure"
+----
+
+With more details:
+
+[source,bash]
+----
+clicky create "Implement authentication" \
+  --description "Add login with OAuth2" \
+  --assignee "Alice" \
+  --column todo
+----
+
+== Step 3: View Your Board
+
+See all cards:
+
+[source,bash]
+----
+clicky list
+----
+
+Sample output:
+
+[source]
+----
+Board: My Awesome Project (my-awesome-project)
+Total cards: 2
+
+To Do (todo)
+────────────
+  MAP-001: Set up project structure
+  MAP-002: Implement authentication [@Alice]
+
+In Progress (in_progress)
+─────────────────────────
+  (no cards)
+
+Done (done)
+───────────
+  (no cards)
+----
+
+== Step 4: Move Cards Between Columns
+
+As you work on tasks, move them through the workflow:
+
+[source,bash]
+----
+# Start working on a task
+clicky move MAP-001 in_progress
+
+# Mark as complete
+clicky move MAP-001 done
+----
+
+== Step 5: View Card Details
+
+Get detailed information about a specific card:
+
+[source,bash]
+----
+clicky show MAP-002
+----
+
+Output:
+
+[source]
+----
+Card: MAP-002
+  Title:       Implement authentication
+  Description: Add login with OAuth2
+  Column:      To Do (todo)
+  Assignee:    Alice
+  Created:     2024-01-15 10:30
+  Updated:     2024-01-15 10:30
+----
+
+== Common Workflows
+
+=== Daily Standup Report
+
+Show all in-progress tasks:
+
+[source,bash]
+----
+clicky list --column in_progress
+----
+
+Show tasks by assignee:
+
+[source,bash]
+----
+clicky list --assignee Alice
+----
+
+=== Updating Cards
+
+Change a card's title:
+
+[source,bash]
+----
+clicky update MAP-001 --title "New title"
+----
+
+Add or change description:
+
+[source,bash]
+----
+clicky update MAP-001 --description "Updated details"
+----
+
+Clear the description:
+
+[source,bash]
+----
+clicky update MAP-001 --clear-description
+----
+
+Assign or reassign:
+
+[source,bash]
+----
+clicky update MAP-001 --assignee Bob
+clicky update MAP-001 --clear-assignee
+----
+
+=== Cleaning Up
+
+Delete a completed card:
+
+[source,bash]
+----
+clicky delete MAP-001
+----
+
+Force deletion without confirmation:
+
+[source,bash]
+----
+clicky delete MAP-001 --force
+----
+
+== Next Steps
+
+* Learn about all available commands in the xref:cli-reference.adoc[CLI Reference]
+* Explore the data structure in `.clicky/board.json`
+* Set up shell completion for faster typing
+* Consider version controlling your board with Git
+
+== Tips
+
+* Board data is stored in `.clicky/board.json` - you can inspect or edit it manually
+* Card IDs are automatically generated with a prefix from your board name
+* Use tab completion after setting up shell integration
+* All changes are immediately persisted to disk

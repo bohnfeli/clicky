@@ -1,0 +1,56 @@
+[package]
+name = "clicky"
+version = "0.1.0"
+edition = "2021"
+authors = ["Clicky Contributors"]
+description = "A CLI kanban board for human-agent collaboration"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/clicky"
+keywords = ["kanban", "cli", "project-management", "productivity"]
+categories = ["command-line-utilities", "development-tools"]
+rust-version = "1.70"
+
+[[bin]]
+name = "clicky"
+path = "src/main.rs"
+
+[dependencies]
+# CLI parsing
+clap = { version = "4.4", features = ["derive"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# TUI (for future use)
+ratatui = { version = "0.24", optional = true }
+crossterm = { version = "0.27", optional = true }
+
+# Utilities
+uuid = { version = "1.6", features = ["v4", "serde"] }
+directories = "5.0"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile = "3.8"
+
+[features]
+default = []
+tui = ["ratatui", "crossterm"]
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true

@@ -1,0 +1,218 @@
+= 5. Building Block View
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== 5.1 Level 1: System Overview
+
+[plantuml, system-overview, svg]
+....
+@startuml
+!theme plain
+
+package "Clicky System" {
+    [CLI Interface] as cli
+    [Application Services] as app
+    [Domain Models] as domain
+    [Storage Layer] as storage
+}
+
+[User] as user
+[File System] as fs
+
+user --> cli : Commands
+cli --> app : Use Cases
+app --> domain : Business Logic
+app --> storage : Persistence
+storage --> fs : JSON Files
+
+@enduml
+....
+
+== 5.2 Level 2: Component Details
+
+=== CLI Layer (`src/cli/`)
+
+[plantuml, cli-layer, svg]
+....
+@startuml
+!theme plain
+
+package "CLI Layer" {
+    class Cli {
+        +path: Option<PathBuf>
+        +command: Commands
+    }
+    
+    enum Commands {
+        Init
+        Create
+        Move
+        Show
+        List
+        Update
+        Delete
+        Info
+    }
+}
+
+Cli --> Commands
+
+@enduml
+....
+
+Responsibilities:
+* Parse command-line arguments
+* Route to appropriate handlers
+* Format output for terminal
+
+=== Application Layer (`src/application/`)
+
+[plantuml, app-layer, svg]
+....
+@startuml
+!theme plain
+
+package "Application Layer" {
+    class BoardService {
+        +initialize()
+        +load()
+        +save()
+        +exists()
+    }
+    
+    class CardService {
+        +create()
+        +move_to()
+        +update()
+        +delete()
+        +get()
+        +list()
+    }
+}
+
+CardService ..> BoardService
+
+@enduml
+....
+
+Responsibilities:
+* Coordinate use cases
+* Manage transactions
+* Validate inputs
+* Error handling
+
+=== Domain Layer (`src/domain/`)
+
+[plantuml, domain-layer, svg]
+....
+@startuml
+!theme plain
+
+package "Domain Layer" {
+    class Board {
+        +id: String
+        +name: String
+        +columns: Vec<Column>
+        +cards: Vec<Card>
+        +create_card()
+        +move_card()
+        +delete_card()
+    }
+    
+    class Column {
+        +id: String
+        +name: String
+        +cards: Vec<String>
+        +add_card()
+        +remove_card()
+    }
+    
+    class Card {
+        +id: String
+        +title: String
+        +description: Option<String>
+        +column_id: String
+        +assignee: Option<String>
+        +move_to()
+    }
+}
+
+Board "1" *-- "*" Column
+Board "1" *-- "*" Card
+Column "1" o-- "*" Card : references
+
+@enduml
+....
+
+Responsibilities:
+* Define core business entities
+* Enforce business rules
+* Independent of infrastructure
+
+=== Infrastructure Layer (`src/infrastructure/`)
+
+[plantuml, infra-layer, svg]
+....
+@startuml
+!theme plain
+
+package "Infrastructure Layer" {
+    interface BoardRepository {
+        +load()
+        +save()
+        +exists()
+        +delete()
+    }
+    
+    class JsonBoardRepository {
+        +load()
+        +save()
+        +exists()
+        +delete()
+    }
+    
+    class BoardStorage {
+        +board_path()
+        +find_board_path()
+    }
+}
+
+BoardRepository <|.. JsonBoardRepository
+JsonBoardRepository ..> BoardStorage
+
+@enduml
+....
+
+Responsibilities:
+* Persist data to storage
+* Abstract storage mechanism
+* Handle I/O operations
+
+== 5.3 Dependencies
+
+[plantuml, dependencies, svg]
+....
+@startuml
+!theme plain
+
+package "CLI" as cli
+package "Application" as app
+package "Domain" as domain
+package "Infrastructure" as infra
+
+cli --> app
+app --> domain
+app --> infra
+domain ..> infra : no dependency
+
+@enduml
+....
+
+Dependencies follow Clean Architecture rules:
+* Domain has no external dependencies
+* Application depends on Domain
+* Infrastructure depends on Application (via traits)
+* CLI depends on Application

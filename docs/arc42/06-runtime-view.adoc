@@ -1,0 +1,126 @@
+= 6. Runtime View
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== 6.1 Initialize Board
+
+[plantuml, runtime-init, svg]
+....
+@startuml
+!theme plain
+
+actor User
+participant "CLI" as cli
+participant "BoardService" as svc
+participant "JsonBoardRepository" as repo
+participant "File System" as fs
+
+User -> cli : clicky init "My Project"
+cli -> svc : initialize(path, name)
+svc -> svc : sanitize_id(name)
+svc -> svc : Board::new(id, name)
+svc -> repo : save(board, path)
+repo -> fs : write JSON
+repo --> svc : Ok
+svc --> cli : Board
+cli --> User : Success message
+
+@enduml
+....
+
+== 6.2 Create Card
+
+[plantuml, runtime-create, svg]
+....
+@startuml
+!theme plain
+
+actor User
+participant "CLI" as cli
+participant "CardService" as card_svc
+participant "BoardService" as board_svc
+participant "JsonBoardRepository" as repo
+participant "File System" as fs
+
+User -> cli : clicky create "Task"
+cli -> card_svc : create(path, title, ...)
+card_svc -> board_svc : load(path)
+board_svc -> repo : load(path)
+repo -> fs : read JSON
+repo --> board_svc : Board
+board_svc --> card_svc : Board
+card_svc -> card_svc : board.create_card(...)
+card_svc -> board_svc : save(board, path)
+board_svc -> repo : save(board, path)
+repo -> fs : write JSON
+repo --> board_svc : Ok
+board_svc --> card_svc : Ok
+card_svc --> cli : CreatedCardInfo
+cli --> User : Success message
+
+@enduml
+....
+
+== 6.3 Move Card
+
+[plantuml, runtime-move, svg]
+....
+@startuml
+!theme plain
+
+actor User
+participant "CLI" as cli
+participant "CardService" as card_svc
+participant "BoardService" as board_svc
+participant "JsonBoardRepository" as repo
+participant "File System" as fs
+
+User -> cli : clicky move PRJ-001 done
+cli -> card_svc : move_to(path, "PRJ-001", "done")
+card_svc -> board_svc : load(path)
+board_svc -> repo : load(path)
+repo -> fs : read JSON
+repo --> board_svc : Board
+board_svc --> card_svc : Board
+card_svc -> card_svc : board.move_card("PRJ-001", "done")
+card_svc -> board_svc : save(board, path)
+board_svc -> repo : save(board, path)
+repo -> fs : write JSON
+repo --> board_svc : Ok
+board_svc --> card_svc : Ok
+card_svc --> cli : Board
+cli --> User : Success message
+
+@enduml
+....
+
+== 6.4 List Cards
+
+[plantuml, runtime-list, svg]
+....
+@startuml
+!theme plain
+
+actor User
+participant "CLI" as cli
+participant "CardService" as card_svc
+participant "BoardService" as board_svc
+participant "JsonBoardRepository" as repo
+participant "File System" as fs
+
+User -> cli : clicky list
+cli -> card_svc : list(path)
+card_svc -> board_svc : load(path)
+board_svc -> repo : load(path)
+repo -> fs : read JSON
+repo --> board_svc : Board
+board_svc --> card_svc : Board
+card_svc --> cli : Board
+cli -> cli : format output
+cli --> User : Formatted list
+
+@enduml
+....

@@ -1,0 +1,63 @@
+= 3. Context and Scope
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== 3.1 Business Context
+
+Clicky serves as a bridge between human project management needs and automated workflows. It allows:
+
+* Humans to track tasks using familiar kanban concepts
+* Agents to read and update task status programmatically
+* Both to collaborate using a shared, persistent data store
+
+== 3.2 Technical Context
+
+=== Interfaces
+
+[plantuml, technical-context, svg]
+....
+@startuml
+!theme plain
+
+rectangle "Clicky" as clicky
+
+rectangle "File System" as fs
+rectangle "Terminal" as term
+rectangle "Version Control" as git
+rectangle "Scripts/Agents" as agents
+
+clicky --> fs : Reads/Writes
+clicky <-- term : User Input
+clicky --> term : Output
+fs <-- git : Tracks
+agents --> clicky : CLI Commands
+agents --> fs : Direct Access
+
+@enduml
+....
+
+=== External Systems
+
+[cols="1,2,3"]
+|===
+|System |Interface |Description
+
+|File System
+|JSON files in `.clicky/`
+|Persistent storage for boards and cards
+
+|Shell/Terminal
+|stdin/stdout/stderr
+|User interaction and command execution
+
+|Git
+|Files in working directory
+|Board data can be version controlled
+
+|Scripts/Agents
+|CLI commands or direct file access
+|Automation and integration
+|===

@@ -1,0 +1,436 @@
+= CLI Reference
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Global Options
+
+These options can be used with any command:
+
+[cols="1,2,3"]
+|===
+|Option |Description |Example
+
+|-p, --path <PATH>
+|Path to board directory (defaults to current directory)
+|`clicky --path /path/to/project list`
+
+|-h, --help
+|Print help information
+|`clicky --help`
+
+|-V, --version
+|Print version information
+|`clicky --version`
+|===
+
+== Commands
+
+=== init
+
+Initialize a new kanban board in the current directory.
+
+**Usage:**
+
+[source,bash]
+----
+clicky init [OPTIONS] [NAME]
+----
+
+**Arguments:**
+
+[cols="1,2,2"]
+|===
+|Name |Description |Default
+
+|[NAME]
+|Name for the board
+|Directory name
+|===
+
+**Options:**
+
+[cols="1,2"]
+|===
+|Option |Description
+
+|-n, --name <NAME>
+|Name for the board (alternative to positional arg)
+|===
+
+**Examples:**
+
+[source,bash]
+----
+# Initialize with directory name
+clicky init
+
+# Initialize with custom name
+clicky init "My Project"
+
+# Alternative syntax
+clicky init --name "My Project"
+----
+
+=== create
+
+Create a new card in the board.
+
+**Usage:**
+
+[source,bash]
+----
+clicky create [OPTIONS] <TITLE>
+----
+
+**Arguments:**
+
+[cols="1,2"]
+|===
+|Name |Description
+
+|<TITLE>
+|Card title (required)
+|===
+
+**Options:**
+
+[cols="1,2,2"]
+|===
+|Option |Description |Example
+
+|-d, --description <DESC>
+|Card description
+|`--description "Details here"`
+
+|-a, --assignee <NAME>
+|Assignee name
+|`--assignee Alice`
+
+|-c, --column <ID>
+|Column ID (defaults to "todo")
+|`--column in_progress`
+|===
+
+**Examples:**
+
+[source,bash]
+----
+# Simple card
+clicky create "Fix bug"
+
+# Card with details
+clicky create "Implement feature" \
+  --description "Add OAuth2 login" \
+  --assignee Bob \
+  --column todo
+----
+
+=== move
+
+Move a card to a different column.
+
+**Usage:**
+
+[source,bash]
+----
+clicky move <CARD_ID> <COLUMN>
+----
+
+**Arguments:**
+
+[cols="1,2"]
+|===
+|Name |Description
+
+|<CARD_ID>
+|Card ID (e.g., PRJ-001)
+
+|<COLUMN>
+|Target column ID (e.g., in_progress, done)
+|===
+
+**Examples:**
+
+[source,bash]
+----
+# Start working on a task
+clicky move PRJ-001 in_progress
+
+# Complete a task
+clicky move PRJ-001 done
+----
+
+=== show
+
+Display detailed information about a card.
+
+**Usage:**
+
+[source,bash]
+----
+clicky show <CARD_ID>
+----
+
+**Arguments:**
+
+[cols="1,2"]
+|===
+|Name |Description
+
+|<CARD_ID>
+|Card ID (e.g., PRJ-001)
+|===
+
+**Example:**
+
+[source,bash]
+----
+clicky show PRJ-001
+----
+
+**Output:**
+
+[source]
+----
+Card: PRJ-001
+  Title:       Implement feature
+  Description: Detailed description
+  Column:      In Progress (in_progress)
+  Assignee:    Alice
+  Created:     2024-01-15 10:30
+  Updated:     2024-01-15 14:20
+----
+
+=== list
+
+List all cards in the board, organized by column.
+
+**Usage:**
+
+[source,bash]
+----
+clicky list [OPTIONS]
+----
+
+**Options:**
+
+[cols="1,2,2"]
+|===
+|Option |Description |Example
+
+|-c, --column <ID>
+|Filter by column ID
+|`--column done`
+
+|-a, --assignee <NAME>
+|Filter by assignee
+|`--assignee Alice`
+|===
+
+**Examples:**
+
+[source,bash]
+----
+# List all cards
+clicky list
+
+# List cards in specific column
+clicky list --column in_progress
+
+# List cards by assignee
+clicky list --assignee Bob
+
+# Combine filters
+clicky list --column todo --assignee Alice
+----
+
+=== update
+
+Update a card's details.
+
+**Usage:**
+
+[source,bash]
+----
+clicky update [OPTIONS] <CARD_ID>
+----
+
+**Arguments:**
+
+[cols="1,2"]
+|===
+|Name |Description
+
+|<CARD_ID>
+|Card ID (e.g., PRJ-001)
+|===
+
+**Options:**
+
+[cols="1,2,2"]
+|===
+|Option |Description |Conflicts With
+
+|-t, --title <TITLE>
+|New title
+|
+
+|-d, --description <DESC>
+|New description
+|--clear-description
+
+|--clear-description
+|Clear the description
+|--description
+
+|-a, --assignee <NAME>
+|New assignee
+|--clear-assignee
+
+|--clear-assignee
+|Clear the assignee
+|--assignee
+|===
+
+**Examples:**
+
+[source,bash]
+----
+# Update title
+clicky update PRJ-001 --title "New title"
+
+# Update description
+clicky update PRJ-001 --description "New details"
+
+# Clear description
+clicky update PRJ-001 --clear-description
+
+# Reassign
+clicky update PRJ-001 --assignee Charlie
+
+# Multiple updates
+clicky update PRJ-001 \
+  --title "New title" \
+  --description "New desc" \
+  --assignee Alice
+----
+
+=== delete
+
+Delete a card from the board.
+
+**Usage:**
+
+[source,bash]
+----
+clicky delete [OPTIONS] <CARD_ID>
+----
+
+**Arguments:**
+
+[cols="1,2"]
+|===
+|Name |Description
+
+|<CARD_ID>
+|Card ID (e.g., PRJ-001)
+|===
+
+**Options:**
+
+[cols="1,2"]
+|===
+|Option |Description
+
+|-f, --force
+|Skip confirmation prompt
+|===
+
+**Examples:**
+
+[source,bash]
+----
+# Delete with confirmation
+clicky delete PRJ-001
+
+# Delete without confirmation
+clicky delete PRJ-001 --force
+----
+
+=== info
+
+Display information about the current board.
+
+**Usage:**
+
+[source,bash]
+----
+clicky info
+----
+
+**Example:**
+
+[source,bash]
+----
+clicky info
+----
+
+**Output:**
+
+[source]
+----
+Board: My Project
+ID: my-project
+Card ID prefix: MYP
+Created: 2024-01-15 10:00
+
+Columns:
+  To Do (todo): 5 cards
+  In Progress (in_progress): 2 cards
+  Done (done): 10 cards
+
+Total cards: 17
+----
+
+== Exit Codes
+
+[cols="1,2"]
+|===
+|Code |Meaning
+
+|0
+|Success
+
+|1
+|General error
+
+|2
+|Board not found
+
+|3
+|Invalid input
+|===
+
+== Environment Variables
+
+Currently, Clicky does not use environment variables for configuration. All settings are determined by:
+
+* Command-line arguments
+* Board data files
+* Directory structure
+
+== File Locations
+
+[cols="1,2"]
+|===
+|File |Location
+
+|Board data
+|`<project-dir>/.clicky/board.json`
+
+|Binary (cargo install)
+|`$HOME/.cargo/bin/clicky`
+|===

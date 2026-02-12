@@ -1,0 +1,56 @@
+= Clicky Documentation
+:author: Clicky Contributors
+:email: contributors@clicky.dev
+:revnumber: 0.1.0
+:revdate: {docdatetime}
+:toc: left
+:toclevels: 3
+:sectnums:
+:icons: font
+:source-highlighter: rouge
+
+== Overview
+
+Clicky is a CLI kanban board designed for human-agent collaboration. It provides a simple yet powerful interface for managing tasks through command-line interactions, making it ideal for automation and scripting while remaining user-friendly for manual use.
+
+== Documentation Structure
+
+This documentation is organized into the following sections:
+
+link:./user-guide/[User Guide]::
+Installation instructions, quick start guide, and detailed CLI reference for end users.
+
+link:./arc42/[Architecture Documentation]::
+Comprehensive architecture documentation following the arc42 template, including system context, building blocks, and design decisions.
+
+link:./developer/[Developer Guide]::
+Guidelines for contributors, development setup, testing procedures, and architectural patterns.
+
+== Quick Links
+
+* xref:user-guide/quickstart.adoc[Quick Start Guide]
+* xref:user-guide/cli-reference.adoc[CLI Reference]
+* xref:arc42/01-introduction.adoc[Architecture Introduction]
+* xref:developer/contributing.adoc[Contributing Guidelines]
+
+== Project Information
+
+*Repository:* https://github.com/yourusername/clicky
+*License:* MIT OR Apache-2.0
+*Language:* Rust
+*Minimum Rust Version:* 1.70
+
+== Features
+
+* *CLI-First Design*: All operations available through intuitive commands
+* *Human-Agent Collaboration*: Designed for both manual use and automation
+* *Persistent Storage*: JSON-based storage for easy inspection and versioning
+* *Clean Architecture*: Maintainable and testable codebase
+* *Extensible*: Ready for future TUI and additional features
+
+== Getting Help
+
+* Check the xref:user-guide/quickstart.adoc[Quick Start Guide] for common tasks
+* Refer to the xref:user-guide/cli-reference.adoc[CLI Reference] for command details
+* Review the xref:arc42/index.adoc[Architecture Documentation] for system understanding
+* Open an issue on GitHub for bugs or feature requests

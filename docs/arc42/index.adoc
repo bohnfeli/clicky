@@ -1,0 +1,76 @@
+= Clicky Architecture Documentation
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== About arc42
+
+arc42 is a template for architecture documentation. It provides a structured approach to documenting software architectures across 8 sections.
+
+== Documentation Structure
+
+1. **xref:01-introduction.adoc[Introduction and Goals]**
+   * Requirements overview
+   * Quality goals
+   * Stakeholders
+
+2. **xref:02-architecture-constraints.adoc[Architecture Constraints]**
+   * Technical constraints
+   * Organizational constraints
+   * Conventions
+
+3. **xref:03-context.adoc[Context and Scope]**
+   * Business context
+   * Technical context
+   * External interfaces
+
+4. **xref:04-solution-strategy.adoc[Solution Strategy]**
+   * Architectural approach
+   * Technology decisions
+   * Design patterns
+
+5. **xref:05-building-block-view.adoc[Building Block View]**
+   * System overview
+   * Component details
+   * Dependencies
+
+6. **xref:06-runtime-view.adoc[Runtime View]**
+   * Use case sequences
+   * Interaction diagrams
+   * Data flow
+
+7. **xref:07-deployment-view.adoc[Deployment View]**
+   * Deployment structure
+   * Installation methods
+   * System requirements
+
+8. **xref:08-concepts.adoc[Cross-cutting Concepts]**
+   * Domain model
+   * Error handling
+   * Testing strategy
+
+== Quick Navigation
+
+* New to the project? Start with xref:01-introduction.adoc[Introduction]
+* Want to understand the design? Read xref:04-solution-strategy.adoc[Solution Strategy]
+* Need implementation details? See xref:05-building-block-view.adoc[Building Block View]
+* Setting up the system? Check xref:07-deployment-view.adoc[Deployment View]
+
+== Diagrams
+
+This documentation includes PlantUML diagrams that can be rendered to SVG or PNG. To view the diagrams:
+
+1. Use an AsciiDoc editor with PlantUML support (e.g., IntelliJ IDEA with plugin)
+2. Render the documentation using AsciiDoctor with PlantUML extension
+3. View the generated HTML or PDF output
+
+== Contributing
+
+When making architectural changes:
+
+1. Update relevant sections in this documentation
+2. Add or update diagrams to reflect changes
+3. Ensure consistency across all sections
+4. Update the changelog if applicable

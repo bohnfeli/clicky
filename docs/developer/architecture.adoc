@@ -1,0 +1,444 @@
+= Architecture Overview
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Clean Architecture
+
+Clicky follows Clean Architecture principles with clear separation of concerns:
+
+[plantuml, clean-architecture-layers, svg]
+....
+@startuml
+!theme plain
+
+package "Domain" as domain #LightGreen {
+    rectangle "Entities" as entities
+    rectangle "Business Logic" as logic
+}
+
+package "Application" as app #LightBlue {
+    rectangle "Use Cases" as usecases
+    rectangle "Services" as services
+}
+
+package "Infrastructure" as infra #LightYellow {
+    rectangle "Repositories" as repos
+    rectangle "External APIs" as apis
+}
+
+package "CLI" as cli #LightPink {
+    rectangle "Commands" as cmds
+    rectangle "Presentation" as pres
+}
+
+cli --> app
+app --> domain
+infra ..> app : implements
+domain ..> infra : no dependency
+
+@enduml
+....
+
+=== Dependency Rule
+
+Dependencies can only point inward:
+1. **Domain**: No external dependencies
+2. **Application**: Depends on Domain
+3. **Infrastructure**: Implements Application interfaces
+4. **CLI**: Depends on Application
+
+== Layer Responsibilities
+
+=== Domain Layer (`src/domain/`)
+
+Contains core business logic:
+
+[source]
+----
+src/domain/
+├── mod.rs          # Module exports
+├── board.rs        # Board aggregate root
+├── card.rs         # Card entity
+└── column.rs       # Column entity
+----
+
+**Responsibilities:**
+* Define business entities
+* Enforce business rules
+* Pure logic, no I/O
+* Independent of frameworks
+
+**Example:**
+
+[source,rust]
+----
+impl Board {
+    pub fn create_card(&mut self, title: String, ...) -> String {
+        // Business logic: generate ID, validate, etc.
+        let card_id = self.generate_card_id();
+        // ...
+        card_id
+    }
+}
+----
+
+=== Application Layer (`src/application/`)
+
+Coordinates use cases:
+
+[source]
+----
+src/application/
+├── mod.rs              # Module exports
+├── board_service.rs    # Board operations
+└── card_service.rs     # Card operations
+----
+
+**Responsibilities:**
+* Implement use cases
+* Orchestrate domain objects
+* Transaction management
+* Input validation
+
+**Example:**
+
+[source,rust]
+----
+impl CardService {
+    pub fn create(&self, path: &Path, title: String, ...) 
+        -> Result<CreatedCardInfo, CardServiceError> 
+    {
+        let mut board = self.board_service.load(path)?;
+        let card_id = board.create_card(title, ...);
+        self.board_service.save(&board, path)?;
+        Ok(CreatedCardInfo { card_id, board })
+    }
+}
+----
+
+=== Infrastructure Layer (`src/infrastructure/`)
+
+Handles external concerns:
+
+[source]
+----
+src/infrastructure/
+├── mod.rs          # Module exports
+└── storage.rs      # Storage implementations
+----
+
+**Responsibilities:**
+* Data persistence
+* External service integration
+* I/O operations
+* Framework-specific code
+
+**Example:**
+
+[source,rust]
+----
+pub trait BoardRepository {
+    fn load(&self, path: &Path) -> Result<Board, StorageError>;
+    fn save(&self, board: &Board, path: &Path) -> Result<(), StorageError>;
+}
+
+pub struct JsonBoardRepository;
+
+impl BoardRepository for JsonBoardRepository {
+    // JSON file implementation
+}
+----
+
+=== CLI Layer (`src/cli/`)
+
+Handles user interaction:
+
+[source]
+----
+src/cli/
+├── mod.rs          # Module exports
+└── commands.rs     # CLI definitions
+----
+
+**Responsibilities:**
+* Parse arguments
+* Display output
+* Error presentation
+* User feedback
+
+**Example:**
+
+[source,rust]
+----
+#[derive(Parser)]
+#[command(name = "clicky")]
+pub struct Cli {
+    #[arg(short, long)]
+    pub path: Option<PathBuf>,
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    Init { name: Option<String> },
+    // ...
+}
+----
+
+== Data Flow
+
+=== Creating a Card
+
+[plantuml, data-flow-create, svg]
+....
+@startuml
+!theme plain
+
+actor User
+participant "CLI" as cli
+participant "CardService" as svc
+participant "Board" as board
+participant "JsonBoardRepository" as repo
+
+User -> cli : clicky create "Task"
+cli -> svc : create(path, "Task", ...)
+svc -> repo : load(path)
+repo --> svc : Board
+svc -> board : create_card("Task", ...)
+board --> svc : card_id
+svc -> repo : save(board, path)
+svc --> cli : CreatedCardInfo
+cli --> User : "Created PRJ-001"
+
+@enduml
+....
+
+=== Moving a Card
+
+[plantuml, data-flow-move, svg]
+....
+@startuml
+!theme plain
+
+actor User
+participant "CLI" as cli
+participant "CardService" as svc
+participant "Board" as board
+participant "JsonBoardRepository" as repo
+
+User -> cli : clicky move PRJ-001 done
+cli -> svc : move_to(path, "PRJ-001", "done")
+svc -> repo : load(path)
+repo --> svc : Board
+svc -> board : move_card("PRJ-001", "done")
+board --> svc : success
+svc -> repo : save(board, path)
+svc --> cli : Board
+cli --> User : "Moved PRJ-001 to Done"
+
+@enduml
+....
+
+== Design Patterns
+
+=== Repository Pattern
+
+Abstracts storage mechanism:
+
+[source,rust]
+----
+pub trait BoardRepository {
+    fn load(&self, path: &Path) -> Result<Board, StorageError>;
+    fn save(&self, board: &Board, path: &Path) -> Result<(), StorageError>;
+}
+
+// Can be implemented as:
+// - JsonBoardRepository (current)
+// - SqliteBoardRepository (future)
+// - RemoteBoardRepository (future)
+----
+
+Benefits:
+* Easy to test (mock repository)
+* Swappable implementations
+* Storage agnostic domain logic
+
+=== Service Layer
+
+Encapsulates use cases:
+
+[source,rust]
+----
+pub struct CardService {
+    board_service: BoardService,
+}
+
+impl CardService {
+    pub fn create(&self, ...) -> Result<..., CardServiceError> {
+        // Orchestrate domain objects
+        // Handle transactions
+        // Map errors
+    }
+}
+----
+
+Benefits:
+* Reusable business operations
+* Centralized error handling
+* Transaction boundaries
+
+=== Entity Pattern
+
+Rich domain objects:
+
+[source,rust]
+----
+pub struct Card {
+    pub id: String,
+    pub title: String,
+    // ...
+}
+
+impl Card {
+    pub fn move_to(&mut self, column_id: String) {
+        self.column_id = column_id;
+        self.updated_at = Utc::now();
+    }
+}
+----
+
+Benefits:
+* Encapsulation of business logic
+* Self-validating objects
+* Immutable where possible
+
+== Error Handling Strategy
+
+=== Layer-Specific Errors
+
+[plantuml, error-handling, svg]
+....
+@startuml
+!theme plain
+
+package "Domain" {
+    [Simple Validation] as domain_err
+}
+
+package "Infrastructure" {
+    [StorageError] as infra_err
+}
+
+package "Application" {
+    [CardServiceError] as app_err
+}
+
+package "CLI" {
+    [User-Friendly Message] as cli_err
+}
+
+domain_err ..> app_err : included in
+infra_err ..> app_err : converted to
+app_err ..> cli_err : formatted as
+
+@enduml
+....
+
+=== Error Conversion
+
+Using `thiserror` for ergonomic conversions:
+
+[source,rust]
+----
+#[derive(Error, Debug)]
+pub enum CardServiceError {
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
+    #[error("Card not found: {0}")]
+    CardNotFound(String),
+    // ...
+}
+
+// Can use ? operator for automatic conversion
+fn load_board(&self, path: &Path) -> Result<Board, CardServiceError> {
+    let board = self.repository.load(path)?; // Auto-converts StorageError
+    Ok(board)
+}
+----
+
+== Testing Strategy
+
+=== Test Pyramid
+
+[plantuml, test-pyramid, svg]
+----
+@startuml
+!theme plain
+
+rectangle "Unit Tests" as unit #LightGreen
+rectangle "Integration Tests" as integration #LightBlue
+rectangle "E2E Tests" as e2e #LightYellow
+
+unit --> integration
+integration --> e2e
+
+@enduml
+----
+
+**Unit Tests:**
+* In same file as code (`#[cfg(test)]`)
+* Test domain logic in isolation
+* Fast execution
+
+**Integration Tests:**
+* In `tests/` directory
+* Test service coordination
+* Use temporary files
+
+**E2E Tests:**
+* Test CLI commands
+* Use `assert_cmd` crate
+* Full workflow testing
+
+=== Example Unit Test
+
+[source,rust]
+----
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_card() {
+        // Arrange
+        let mut board = Board::new("test".to_string(), "Test".to_string());
+        
+        // Act
+        let card_id = board.create_card("Title".to_string(), None, None, None);
+        
+        // Assert
+        assert_eq!(card_id, "TES-001");
+        assert_eq!(board.cards.len(), 1);
+    }
+}
+----
+
+== Future Architecture
+
+=== Planned Enhancements
+
+1. **TUI Mode**: Interactive terminal UI using ratatui
+2. **Database Backend**: SQLite option for larger datasets
+3. **Remote Sync**: Cloud storage synchronization
+4. **Plugin System**: Custom commands and integrations
+
+=== Extension Points
+
+* New storage backends (implement `BoardRepository`)
+* New CLI commands (add to `Commands` enum)
+* New card fields (extend `Card` struct)
+* Custom column workflows

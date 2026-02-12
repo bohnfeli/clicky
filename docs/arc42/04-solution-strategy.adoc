@@ -1,0 +1,104 @@
+= 4. Solution Strategy
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== 4.1 Architectural Approach
+
+=== Clean Architecture
+
+We follow Clean Architecture with clear separation of concerns:
+
+[plantuml, clean-architecture, svg]
+....
+@startuml
+!theme plain
+
+package "Infrastructure Layer" {
+    [JSON Repository] as repo
+    [File System] as fs
+}
+
+package "Application Layer" {
+    [Board Service] as board_svc
+    [Card Service] as card_svc
+}
+
+package "Domain Layer" {
+    [Board] as board
+    [Card] as card
+    [Column] as column
+}
+
+package "CLI Layer" {
+    [Commands] as cmds
+    [Main] as main
+}
+
+main --> cmds
+cmds --> board_svc
+cmds --> card_svc
+board_svc --> repo
+card_svc --> board_svc
+repo --> fs
+board_svc ..> board
+card_svc ..> card
+
+@enduml
+....
+
+=== Key Decisions
+
+1. **Domain-Driven Design**: Core business logic in domain layer, independent of infrastructure
+2. **Repository Pattern**: Abstract storage for easy testing and future database support
+3. **Service Layer**: Application services coordinate between CLI and domain
+4. **CLI as Primary Interface**: Commands are the main entry point
+
+== 4.2 Technology Decisions
+
+[cols="1,2,3"]
+|===
+|Technology |Usage |Rationale
+
+|Rust
+|Implementation language
+|Performance, safety, excellent CLI ecosystem
+
+|Clap
+|CLI argument parsing
+|Derive macros, great error messages, help generation
+
+|Serde + serde_json
+|Serialization
+|Standard, well-maintained, flexible
+
+|Chrono
+|Date/time handling
+|Standard for Rust, timezone support
+
+|Thiserror + Anyhow
+|Error handling
+|Ergonomic error types and propagation
+
+|Ratatui (future)
+|TUI implementation
+|Modern Rust TUI library
+|===
+
+== 4.3 Data Storage Strategy
+
+=== Current: JSON Files
+
+* Human-readable
+* Version control friendly
+* Easy to inspect and debug
+* Simple backup and migration
+
+=== Future: Pluggable Storage
+
+The repository pattern allows for future implementations:
+* SQLite for larger datasets
+* Remote storage for team collaboration
+* Cloud storage integration
