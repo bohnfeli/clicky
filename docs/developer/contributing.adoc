@@ -1,0 +1,238 @@
+= Contributing Guidelines
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Getting Started
+
+We welcome contributions to Clicky! This document will guide you through the process.
+
+== Development Setup
+
+=== Prerequisites
+
+* Rust 1.70 or later
+* Git
+* (Optional) PlantUML for rendering diagrams
+
+=== Clone and Build
+
+[source,bash]
+----
+git clone https://github.com/yourusername/clicky.git
+cd clicky
+cargo build
+----
+
+=== Run Tests
+
+[source,bash]
+----
+# Run all tests
+cargo test
+
+# Run with output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test test_create_card
+----
+
+=== Run Linter
+
+[source,bash]
+----
+# Check formatting
+cargo fmt -- --check
+
+# Run clippy
+cargo clippy -- -D warnings
+----
+
+== Development Workflow
+
+=== 1. Create a Branch
+
+[source,bash]
+----
+git checkout -b feature/your-feature-name
+----
+
+Use descriptive prefixes:
+* `feature/` - New features
+* `bugfix/` - Bug fixes
+* `docs/` - Documentation updates
+* `refactor/` - Code refactoring
+
+=== 2. Make Changes
+
+Follow the existing code style and architecture:
+* Clean Architecture principles
+* Test-driven development
+* Clear commit messages
+
+=== 3. Write Tests
+
+All new functionality must include tests:
+
+[source,rust]
+----
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_feature() {
+        // Arrange
+        let input = ...;
+        
+        // Act
+        let result = function_under_test(input);
+        
+        // Assert
+        assert_eq!(result, expected);
+    }
+}
+----
+
+=== 4. Update Documentation
+
+Update relevant documentation:
+* Code comments (/// for public items)
+* User guide (docs/user-guide/)
+* Architecture docs (docs/arc42/)
+* README.md if needed
+
+=== 5. Commit Changes
+
+Use conventional commits format:
+
+[source]
+----
+feat: add new command for archiving cards
+fix: resolve issue with card ID generation
+docs: update installation instructions
+refactor: simplify error handling
+test: add integration tests for CLI
+----
+
+=== 6. Push and Create PR
+
+[source,bash]
+----
+git push -u origin feature/your-feature-name
+----
+
+Then create a Pull Request on GitHub with:
+* Clear description of changes
+* Reference to related issues
+* Test results
+
+== Code Style
+
+=== Rust Style
+
+We follow standard Rust conventions:
+* Run `cargo fmt` before committing
+* Follow `cargo clippy` suggestions
+* Max line width: 100 characters
+* 4 spaces for indentation
+
+=== Import Order
+
+```rust
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use clap::Parser;
+use serde::{Deserialize, Serialize};
+
+use crate::config::Config;
+use crate::utils::format_output;
+```
+
+=== Naming Conventions
+
+* Types: `PascalCase`
+* Functions/variables: `snake_case`
+* Constants: `SCREAMING_SNAKE_CASE`
+* Modules: `snake_case`
+
+== Architecture Guidelines
+
+=== Clean Architecture
+
+Maintain the dependency rule:
+1. Domain layer has no dependencies
+2. Application layer depends on Domain
+3. Infrastructure implements Application traits
+4. CLI depends on Application
+
+=== Testing
+
+* Unit tests alongside code (`#[cfg(test)]`)
+* Integration tests in `tests/` directory
+* Use `tempfile` for file system tests
+* Mock external dependencies
+
+== Commit Message Format
+
+We follow Conventional Commits:
+
+[source]
+----
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+----
+
+Types:
+* **feat**: New feature
+* **fix**: Bug fix
+* **docs**: Documentation
+* **style**: Formatting
+* **refactor**: Code restructuring
+* **test**: Tests
+* **chore**: Maintenance
+
+Example:
+
+[source]
+----
+feat(cli): add --json flag for machine-readable output
+
+Add support for JSON output format to all list commands.
+This enables better integration with scripts and automation tools.
+
+Closes #123
+----
+
+== Reporting Issues
+
+When reporting bugs:
+1. Check existing issues first
+2. Provide minimal reproduction steps
+3. Include environment details (OS, Rust version)
+4. Attach error messages or logs
+
+When requesting features:
+1. Describe the use case
+2. Explain why current functionality is insufficient
+3. Propose an API if applicable
+
+== Code of Conduct
+
+* Be respectful and constructive
+* Welcome newcomers
+* Focus on the code, not the person
+* Assume good intentions
+
+== Questions?
+
+* Open a GitHub Discussion for questions
+* Join our community chat (if available)
+* Check existing documentation

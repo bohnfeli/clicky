@@ -1,0 +1,147 @@
+= 8. Cross-cutting Concepts
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== 8.1 Domain Model
+
+[plantuml, domain-model, svg]
+....
+@startuml
+!theme plain
+
+class Board {
+    +id: String
+    +name: String
+    +card_id_prefix: String
+    +next_card_number: u32
+    +created_at: DateTime
+    +updated_at: DateTime
+}
+
+class Column {
+    +id: String
+    +name: String
+    +order: u32
+}
+
+class Card {
+    +id: String
+    +title: String
+    +description: Option<String>
+    +assignee: Option<String>
+    +created_at: DateTime
+    +updated_at: DateTime
+}
+
+Board "1" *-- "*" Column : contains
+Board "1" *-- "*" Card : contains
+Column "1" o-- "*" Card : references by id
+
+@enduml
+....
+
+== 8.2 Card ID Generation
+
+Card IDs follow the format: `{PREFIX}-{NUMBER}`
+
+* **Prefix**: First 3 letters of board ID, uppercase
+* **Number**: Sequential, zero-padded to 3 digits
+
+Examples:
+* `myproject` board → `MYP-001`, `MYP-002`, ...
+* `backend-api` board → `BAC-001`, `BAC-002`, ...
+
+== 8.3 Error Handling Strategy
+
+We use a layered error approach:
+
+1. **Domain Layer**: Simple errors, no external dependencies
+2. **Infrastructure Layer**: Storage errors with I/O details
+3. **Application Layer**: Service errors combining domain and infrastructure
+4. **CLI Layer**: User-friendly error messages
+
+Error propagation uses the `?` operator with `thiserror` for ergonomic conversions.
+
+== 8.4 Data Persistence
+
+=== JSON Schema
+
+[source,json]
+----
+{
+  "id": "myproject",
+  "name": "My Project",
+  "card_id_prefix": "MYP",
+  "next_card_number": 5,
+  "columns": [
+    {
+      "id": "todo",
+      "name": "To Do",
+      "order": 0,
+      "cards": ["MYP-001", "MYP-002"]
+    }
+  ],
+  "cards": [
+    {
+      "id": "MYP-001",
+      "title": "Implement feature",
+      "description": "Detailed description",
+      "column_id": "todo",
+      "assignee": "Alice",
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T14:20:00Z"
+    }
+  ],
+  "created_at": "2024-01-15T10:00:00Z",
+  "updated_at": "2024-01-15T14:20:00Z"
+}
+----
+
+== 8.5 Testing Strategy
+
+=== Unit Tests
+
+Located in the same file as the code they test, within `#[cfg(test)]` modules.
+
+* Domain logic: Comprehensive coverage
+* Application services: Mocked dependencies
+* Infrastructure: Integration tests with temp files
+
+=== Integration Tests
+
+Located in `tests/` directory using `assert_cmd` and `predicates`.
+
+* CLI command testing
+* End-to-end workflows
+* Error scenarios
+
+=== Test Pattern
+
+We follow the Arrange-Act-Assert pattern:
+
+[source,rust]
+----
+#[test]
+fn test_create_card() {
+    // Arrange
+    let mut board = Board::new("test".to_string(), "Test".to_string());
+    
+    // Act
+    let card_id = board.create_card("Title".to_string(), None, None, None);
+    
+    // Assert
+    assert_eq!(card_id, "TES-001");
+    assert_eq!(board.cards.len(), 1);
+}
+----
+
+== 8.6 Security Considerations
+
+* No network access required
+* Data stored locally in user's project directory
+* No sensitive data handling
+* File permissions follow system defaults
+* JSON parsing uses safe defaults (no arbitrary code execution)

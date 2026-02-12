@@ -1,0 +1,101 @@
+= 7. Deployment View
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== 7.1 Deployment Structure
+
+Clicky is deployed as a single binary executable with no external runtime dependencies.
+
+[plantuml, deployment, svg]
+....
+@startuml
+!theme plain
+
+artifact "clicky binary" as binary
+folder ".clicky" as data {
+    file "board.json" as board
+}
+
+node "User Machine" {
+    binary --> data : reads/writes
+}
+
+@enduml
+....
+
+== 7.2 Installation Methods
+
+=== From Source
+
+[source,bash]
+----
+# Clone repository
+git clone https://github.com/yourusername/clicky
+cd clicky
+
+# Build release binary
+cargo build --release
+
+# Install locally
+cargo install --path .
+----
+
+=== Using Cargo Install
+
+[source,bash]
+----
+cargo install clicky
+----
+
+=== Platform-Specific Packages (Future)
+
+* Homebrew (macOS)
+* APT (Debian/Ubuntu)
+* Chocolatey (Windows)
+
+== 7.3 Directory Structure
+
+=== Application Installation
+
+[source]
+----
+$HOME/.cargo/bin/clicky          # Binary (when installed via cargo)
+/usr/local/bin/clicky           # System-wide installation
+----
+
+=== Per-Project Data
+
+[source]
+----
+<project-dir>/
+├── .clicky/
+│   └── board.json              # Board data
+├── src/
+├── Cargo.toml
+└── ...
+----
+
+== 7.4 System Requirements
+
+[cols="1,2"]
+|===
+|Requirement |Specification
+
+|Operating System
+|macOS 10.14+, Linux, Windows 10+
+
+|Rust Version
+|1.70 or later (for building from source)
+
+|Disk Space
+|~10 MB for binary
+
+|Memory
+|Minimal (< 50 MB RAM)
+
+|Dependencies
+|None at runtime
+|===
