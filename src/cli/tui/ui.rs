@@ -22,7 +22,7 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
     let hints = match app.state {
         AppState::Board => match app.focus {
             Focus::Columns => "h/l/← → Select column | k/j/↑↓ Navigate | Enter Details | ? Help",
-            Focus::Cards => "Esc Exit selection | ? Help",
+            Focus::Cards => "Esc Exit selection | q Return to columns | ? Help",
             _ => "? Help",
         },
         AppState::CardDetail => "e Edit | d Delete | m Move | q Back | ? Help",
