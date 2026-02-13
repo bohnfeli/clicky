@@ -24,13 +24,17 @@ pub enum Commands {
         /// Name for the board (defaults to directory name)
         #[arg(short, long)]
         name: Option<String>,
+
+        /// Use interactive mode
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// Create a new card
     Create {
         /// Card title
-        #[arg(required = true)]
-        title: String,
+        #[arg(required_unless_present = "interactive")]
+        title: Option<String>,
 
         /// Card description
         #[arg(short, long)]
@@ -43,24 +47,36 @@ pub enum Commands {
         /// Column to place the card in (defaults to "todo")
         #[arg(short, long)]
         column: Option<String>,
+
+        /// Use interactive mode
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// Move a card to a different column
     Move {
         /// Card ID (e.g., PRJ-001)
-        #[arg(required = true)]
-        card_id: String,
+        #[arg(required_unless_present = "interactive")]
+        card_id: Option<String>,
 
         /// Target column ID (e.g., "in_progress", "done")
-        #[arg(required = true)]
-        column: String,
+        #[arg(required_unless_present = "interactive")]
+        column: Option<String>,
+
+        /// Use interactive mode
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// Show details of a specific card
     Show {
         /// Card ID (e.g., PRJ-001)
-        #[arg(required = true)]
-        card_id: String,
+        #[arg(required_unless_present = "interactive")]
+        card_id: Option<String>,
+
+        /// Use interactive mode
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// List all cards in the board
@@ -72,13 +88,17 @@ pub enum Commands {
         /// Filter by assignee
         #[arg(short, long)]
         assignee: Option<String>,
+
+        /// Use interactive mode
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// Update a card's details
     Update {
         /// Card ID (e.g., PRJ-001)
-        #[arg(required = true)]
-        card_id: String,
+        #[arg(required_unless_present = "interactive")]
+        card_id: Option<String>,
 
         /// New title
         #[arg(short, long)]
@@ -99,19 +119,31 @@ pub enum Commands {
         /// Clear the assignee
         #[arg(long, conflicts_with = "assignee")]
         clear_assignee: bool,
+
+        /// Use interactive mode
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// Delete a card from the board
     Delete {
         /// Card ID (e.g., PRJ-001)
-        #[arg(required = true)]
-        card_id: String,
+        #[arg(required_unless_present = "interactive")]
+        card_id: Option<String>,
 
         /// Skip confirmation prompt
         #[arg(short, long)]
         force: bool,
+
+        /// Use interactive mode
+        #[arg(short, long)]
+        interactive: bool,
     },
 
     /// Show board information
     Info,
+
+    /// Launch interactive TUI mode
+    #[cfg(feature = "tui")]
+    Tui,
 }

@@ -26,6 +26,32 @@ These options can be used with any command:
 |`clicky --version`
 |===
 
+== Interactive Mode
+
+All commands support an `--interactive` (or `-i`) flag that launches a guided wizard:
+
+[source,bash]
+----
+# Interactive mode for any command
+clicky create -i
+clicky move -i
+clicky update -i
+clicky delete -i
+----
+
+See xref:interactive-mode.adoc[Interactive Mode Guide] for full details.
+
+=== TUI Mode
+
+Launch the full-screen terminal UI:
+
+[source,bash]
+----
+clicky tui
+----
+
+Requires building with `--features tui` or `--features full`.
+
 == Commands
 
 === init

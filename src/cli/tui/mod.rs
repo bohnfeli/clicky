@@ -1,0 +1,198 @@
+//! Terminal UI (TUI) mode for Clicky.
+//!
+//! Provides a full-featured interactive kanban board in the terminal.
+
+pub mod app;
+pub mod components;
+pub mod events;
+pub mod state;
+pub mod ui;
+
+pub use app::App;
+
+/// Run the TUI application.
+pub fn run(board_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::{
+        event::{DisableMouseCapture, EnableMouseCapture},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    };
+    use ratatui::backend::CrosstermBackend;
+    use std::io;
+
+    // Setup terminal
+    enable_raw_mode()?;
+    execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = ratatui::Terminal::new(backend)?;
+
+    // Create app and load board
+    let mut app = App::new(board_path.to_path_buf());
+    app.load_board()?;
+
+    // Setup event handler
+    let mut events = events::EventHandler::new();
+
+    // Run the application loop
+    let res = run_app(&mut terminal, &mut app, &mut events);
+
+    // Restore terminal
+    disable_raw_mode()?;
+    execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
+    events.stop();
+
+    res
+}
+
+fn run_app<B: ratatui::backend::Backend>(
+    terminal: &mut ratatui::Terminal<B>,
+    app: &mut App,
+    events: &mut events::EventHandler,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let mut should_quit = false;
+
+    loop {
+        terminal.draw(|f| ui::draw(f, app))?;
+
+        if let Some(event) = events.try_next() {
+            match event {
+                events::Event::Input(key) => {
+                    match app.state {
+                        state::AppState::Board => handle_board_input(app, &key),
+                        state::AppState::CardDetail => handle_card_detail_input(app, &key),
+                        state::AppState::CreateCard => handle_create_card_input(app, &key),
+                        state::AppState::EditCard => handle_edit_card_input(app, &key),
+                        state::AppState::ConfirmDelete => handle_confirm_delete_input(app, &key),
+                        state::AppState::Help => {
+                            if key.code == KeyCode::Esc || key.code == KeyCode::Char('?') {
+                                app.toggle_help();
+                            }
+                        }
+                    }
+
+                    if app.state == state::AppState::Board && key.code == KeyCode::Char('q') {
+                        should_quit = true;
+                    }
+                }
+                events::Event::Tick => {}
+            }
+        }
+
+        if should_quit {
+            return Ok(());
+        }
+    }
+}
+
+fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    match key.code {
+        KeyCode::Left | KeyCode::Char('h') => app.move_left(),
+        KeyCode::Right | KeyCode::Char('l') => app.move_right(),
+        KeyCode::Up | KeyCode::Char('k') => app.move_up(),
+        KeyCode::Down | KeyCode::Char('j') => app.move_down(),
+        KeyCode::Enter => {
+            app.enter_cards();
+        }
+        KeyCode::Esc => {
+            app.exit_cards();
+        }
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.state = state::AppState::Board;
+        }
+        KeyCode::Char('q') => {}
+        KeyCode::Char('?') => {
+            app.toggle_help();
+        }
+        _ => {}
+    }
+}
+
+fn handle_card_detail_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crossterm::event::KeyCode;
+
+    match key.code {
+        KeyCode::Char('e') => {
+            app.state = state::AppState::EditCard;
+        }
+        KeyCode::Char('d') => {
+            app.state = state::AppState::ConfirmDelete;
+        }
+        KeyCode::Char('m') => {
+            // Move card - would require implementing move from card detail
+        }
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.state = state::AppState::Board;
+        }
+        KeyCode::Char('?') => {
+            app.toggle_help();
+        }
+        _ => {}
+    }
+}
+
+fn handle_create_card_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crossterm::event::KeyCode;
+
+    match app.input_mode {
+        state::InputMode::Normal => match key.code {
+            KeyCode::Char('i') => {
+                app.input_mode = state::InputMode::Editing;
+            }
+            KeyCode::Esc => {
+                app.state = state::AppState::Board;
+                app.input.clear();
+            }
+            KeyCode::Char('?') => {
+                app.toggle_help();
+            }
+            _ => {}
+        },
+        state::InputMode::Editing => match key.code {
+            KeyCode::Char(c) => {
+                app.input.push(c);
+            }
+            KeyCode::Backspace => {
+                app.input.pop();
+            }
+            KeyCode::Enter => {
+                if !app.input.trim().is_empty() {
+                    // TODO: Create card
+                    app.input.clear();
+                    app.input_mode = state::InputMode::Normal;
+                    app.state = state::AppState::Board;
+                }
+            }
+            KeyCode::Esc => {
+                app.input.clear();
+                app.input_mode = state::InputMode::Normal;
+            }
+            _ => {}
+        },
+    }
+}
+
+fn handle_edit_card_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    handle_create_card_input(app, key);
+}
+
+fn handle_confirm_delete_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crossterm::event::KeyCode;
+
+    match key.code {
+        KeyCode::Char('y') => {
+            // TODO: Delete card
+            app.state = state::AppState::Board;
+        }
+        KeyCode::Char('n') | KeyCode::Esc => {
+            app.state = state::AppState::CardDetail;
+        }
+        KeyCode::Char('?') => {
+            app.toggle_help();
+        }
+        _ => {}
+    }
+}

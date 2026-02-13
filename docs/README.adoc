@@ -30,6 +30,7 @@ Guidelines for contributors, development setup, testing procedures, and architec
 
 * xref:user-guide/quickstart.adoc[Quick Start Guide]
 * xref:user-guide/cli-reference.adoc[CLI Reference]
+* xref:user-guide/interactive-mode.adoc[Interactive Mode Guide]
 * xref:arc42/01-introduction.adoc[Architecture Introduction]
 * xref:developer/contributing.adoc[Contributing Guidelines]
 
@@ -47,6 +48,8 @@ Guidelines for contributors, development setup, testing procedures, and architec
 * *Persistent Storage*: JSON-based storage for easy inspection and versioning
 * *Clean Architecture*: Maintainable and testable codebase
 * *Extensible*: Ready for future TUI and additional features
+* *Interactive Prompts*: Step-by-step wizards for guided workflows (optional feature)
+* *TUI Mode*: Full-screen terminal UI for visual kanban boards (optional feature)
 
 == Getting Help
 

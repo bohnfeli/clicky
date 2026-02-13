@@ -108,8 +108,8 @@ src/application/
 [source,rust]
 ----
 impl CardService {
-    pub fn create(&self, path: &Path, title: String, ...) 
-        -> Result<CreatedCardInfo, CardServiceError> 
+    pub fn create(&self, path: &Path, title: String, ...)
+        -> Result<CreatedCardInfo, CardServiceError>
     {
         let mut board = self.board_service.load(path)?;
         let card_id = board.create_card(title, ...);
@@ -118,6 +118,53 @@ impl CardService {
     }
 }
 ----
+
+=== Interactive & TUI Layer
+
+The CLI layer includes optional interactive and TUI modes:
+
+* **Interactive Prompts**: Step-by-step wizards using the `inquire` crate
+* **TUI Mode**: Full-screen terminal UI using the `ratatui` crate
+
+Both modes provide enhanced user experience while maintaining CLI-first design.
+
+**Architecture:**
+
+[plantuml, interactive-tui, svg]
+....
+@startuml
+!theme plain
+
+package "CLI Layer" as cli {
+    [CLI Commands] as cmds
+    [Interactive Prompts] as interact
+    [TUI Mode] as tui
+}
+
+package "Features" as features {
+    [inquire crate] as inquire
+    [ratatui + crossterm] as tui_libs
+}
+
+interact --> inquire
+tui --> tui_libs
+cmds --> interact : optional
+cmds --> tui : optional
+
+@enduml
+....
+
+**Interactive Features:**
+* Wizard-style prompts for all commands
+* Selection menus for columns/assignees
+* Real-time validation
+* Confirmation dialogs
+
+**TUI Features:**
+* Visual kanban board layout
+* Keyboard navigation (arrow keys, hjkl)
+* Card detail view
+* Create/edit/delete operations within TUI
 
 === Infrastructure Layer (`src/infrastructure/`)
 
@@ -160,14 +207,37 @@ Handles user interaction:
 ----
 src/cli/
 ├── mod.rs          # Module exports
-└── commands.rs     # CLI definitions
+├── commands.rs     # CLI definitions
+├── interactive/    # Interactive prompt handlers (optional feature)
+│   ├── mod.rs
+│   ├── init_prompt.rs
+│   ├── create_prompt.rs
+│   ├── move_prompt.rs
+│   ├── update_prompt.rs
+│   ├── delete_prompt.rs
+│   ├── list_prompt.rs
+│   ├── show_prompt.rs
+│   └── utils.rs
+└── tui/           # Terminal UI implementation (optional feature)
+    ├── mod.rs
+    ├── app.rs
+    ├── ui.rs
+    ├── events.rs
+    ├── state.rs
+    └── components/
+        ├── mod.rs
+        ├── board_view.rs
+        └── card_detail.rs
 ----
 
 **Responsibilities:**
 * Parse arguments
-* Display output
+* Route to appropriate handlers
+* Format output for terminal
 * Error presentation
 * User feedback
+* Interactive wizards (when feature enabled)
+* Full-screen TUI (when feature enabled)
 
 **Example:**
 
@@ -431,10 +501,15 @@ mod tests {
 
 === Planned Enhancements
 
-1. **TUI Mode**: Interactive terminal UI using ratatui
+1. ~~**TUI Mode**: Interactive terminal UI using ratatui~~ ✅ Implemented
 2. **Database Backend**: SQLite option for larger datasets
 3. **Remote Sync**: Cloud storage synchronization
 4. **Plugin System**: Custom commands and integrations
+5. **Advanced TUI Features**:
+   - Drag and drop card moving
+   - Search/filter within TUI
+   - Multiple board support
+   - Themes and color schemes
 
 === Extension Points
 

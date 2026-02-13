@@ -10,6 +10,8 @@ mod domain;
 mod infrastructure;
 
 use application::{BoardService, CardService};
+#[cfg(feature = "interactive")]
+use cli::interactive;
 use cli::{Cli, Commands};
 use infrastructure::storage::BoardStorage;
 
@@ -32,16 +34,111 @@ fn main() {
 
     // Execute the command
     let result = match cli.command {
-        Commands::Init { name } => cmd_init(&base_path, name),
+        Commands::Init { name, interactive } => {
+            if interactive {
+                #[cfg(feature = "interactive")]
+                {
+                    interactive::init_prompt::run_interactive_init(&base_path)
+                        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+                }
+                #[cfg(not(feature = "interactive"))]
+                {
+                    Err("Interactive mode is not enabled. Build with --features interactive to use this feature.".into())
+                }
+            } else {
+                cmd_init(&base_path, name)
+            }
+        }
         Commands::Create {
             title,
             description,
             assignee,
             column,
-        } => cmd_create(&base_path, title, description, assignee, column),
-        Commands::Move { card_id, column } => cmd_move(&base_path, &card_id, &column),
-        Commands::Show { card_id } => cmd_show(&base_path, &card_id),
-        Commands::List { column, assignee } => cmd_list(&base_path, column, assignee),
+            interactive,
+        } => {
+            if interactive {
+                #[cfg(feature = "interactive")]
+                {
+                    interactive::create_prompt::run_interactive_create(&base_path)
+                        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+                }
+                #[cfg(not(feature = "interactive"))]
+                {
+                    Err("Interactive mode is not enabled. Build with --features interactive to use this feature.".into())
+                }
+            } else {
+                cmd_create(
+                    &base_path,
+                    title.expect("Title is required unless using interactive mode"),
+                    description,
+                    assignee,
+                    column,
+                )
+            }
+        }
+        Commands::Move {
+            card_id,
+            column,
+            interactive,
+        } => {
+            if interactive {
+                #[cfg(feature = "interactive")]
+                {
+                    interactive::move_prompt::run_interactive_move(&base_path)
+                        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+                }
+                #[cfg(not(feature = "interactive"))]
+                {
+                    Err("Interactive mode is not enabled. Build with --features interactive to use this feature.".into())
+                }
+            } else {
+                cmd_move(
+                    &base_path,
+                    &card_id.expect("Card ID is required unless using interactive mode"),
+                    &column.expect("Column is required unless using interactive mode"),
+                )
+            }
+        }
+        Commands::Show {
+            card_id,
+            interactive,
+        } => {
+            if interactive {
+                #[cfg(feature = "interactive")]
+                {
+                    interactive::show_prompt::run_interactive_show(&base_path)
+                        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+                }
+                #[cfg(not(feature = "interactive"))]
+                {
+                    Err("Interactive mode is not enabled. Build with --features interactive to use this feature.".into())
+                }
+            } else {
+                cmd_show(
+                    &base_path,
+                    &card_id.expect("Card ID is required unless using interactive mode"),
+                )
+            }
+        }
+        Commands::List {
+            column,
+            assignee,
+            interactive,
+        } => {
+            if interactive {
+                #[cfg(feature = "interactive")]
+                {
+                    interactive::list_prompt::run_interactive_list(&base_path)
+                        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+                }
+                #[cfg(not(feature = "interactive"))]
+                {
+                    Err("Interactive mode is not enabled. Build with --features interactive to use this feature.".into())
+                }
+            } else {
+                cmd_list(&base_path, column, assignee)
+            }
+        }
         Commands::Update {
             card_id,
             title,
@@ -49,17 +146,56 @@ fn main() {
             clear_description,
             assignee,
             clear_assignee,
-        } => cmd_update(
-            &base_path,
-            &card_id,
-            title,
-            description,
-            clear_description,
-            assignee,
-            clear_assignee,
-        ),
-        Commands::Delete { card_id, force } => cmd_delete(&base_path, &card_id, force),
+            interactive,
+        } => {
+            if interactive {
+                #[cfg(feature = "interactive")]
+                {
+                    interactive::update_prompt::run_interactive_update(&base_path)
+                        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+                }
+                #[cfg(not(feature = "interactive"))]
+                {
+                    Err("Interactive mode is not enabled. Build with --features interactive to use this feature.".into())
+                }
+            } else {
+                cmd_update(
+                    &base_path,
+                    &card_id.expect("Card ID is required unless using interactive mode"),
+                    title,
+                    description,
+                    clear_description,
+                    assignee,
+                    clear_assignee,
+                )
+            }
+        }
+        Commands::Delete {
+            card_id,
+            force,
+            interactive,
+        } => {
+            if interactive {
+                #[cfg(feature = "interactive")]
+                {
+                    interactive::delete_prompt::run_interactive_delete(&base_path)
+                        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
+                }
+                #[cfg(not(feature = "interactive"))]
+                {
+                    Err("Interactive mode is not enabled. Build with --features interactive to use this feature.".into())
+                }
+            } else {
+                cmd_delete(
+                    &base_path,
+                    &card_id.expect("Card ID is required unless using interactive mode"),
+                    force,
+                )
+            }
+        }
         Commands::Info => cmd_info(&base_path),
+        #[cfg(feature = "tui")]
+        Commands::Tui => cmd_tui(&base_path),
     };
 
     if let Err(e) = result {
@@ -312,4 +448,9 @@ fn cmd_info(base_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("\nTotal cards: {}", board.cards.len());
 
     Ok(())
+}
+
+#[cfg(feature = "tui")]
+fn cmd_tui(base_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    cli::tui::run(base_path)
 }
