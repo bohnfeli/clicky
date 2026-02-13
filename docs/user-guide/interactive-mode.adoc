@@ -1,0 +1,196 @@
+= Interactive Mode
+:author: Clicky Contributors
+:revnumber: 0.1.0
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Overview
+
+Clicky supports two types of interactive user interfaces:
+
+1. **Interactive Prompts** - Step-by-step wizards for each command
+2. **TUI Mode** - Full terminal UI with visual kanban board
+
+Both modes are optional features that can be enabled at build time.
+
+== Building with Interactive Features
+
+To build Clicky with interactive features enabled:
+
+```bash
+# Interactive prompts only
+cargo build --release --features interactive
+
+# TUI mode only
+cargo build --release --features tui
+
+# Both interactive and TUI (full experience)
+cargo build --release --features full
+```
+
+Or install directly from source:
+
+```bash
+cargo install --path . --features full
+```
+
+== Interactive Prompts
+
+All Clicky commands support the `--interactive` (or `-i`) flag, which launches a step-by-step wizard to guide you through the operation.
+
+=== Using Interactive Prompts
+
+```bash
+# Interactive card creation
+clicky create --interactive
+clicky create -i
+
+# Interactive card moving
+clicky move --interactive
+
+# Interactive list with filters
+clicky list --interactive
+
+# Interactive card update
+clicky update --interactive
+
+# Interactive card deletion with preview
+clicky delete --interactive
+
+# Interactive board initialization
+clicky init --interactive
+```
+
+=== Features
+
+* **Smart defaults** - Remembers previous values and suggests them
+* **Validation** - Real-time input validation
+* **Selection menus** - Easy selection from available options
+* **Confirmation dialogs** - Safe operations with clear confirmations
+* **No card IDs needed** - Select from visual lists instead of remembering IDs
+
+== TUI Mode
+
+The TUI mode provides a full-screen terminal interface for managing your kanban board.
+
+=== Starting TUI Mode
+
+```bash
+# Launch TUI
+clicky tui
+
+# Specify board path
+clicky tui --path /path/to/board
+```
+
+=== Keyboard Navigation
+
+| Key | Action |
+|------|---------|
+| `h` or `←` | Move left (previous column) |
+| `l` or `→` | Move right (next column) |
+| `k` or `↑` | Move up (previous card) |
+| `j` or `↓` | Move down (next card) |
+| `Enter` | Select card / Open details |
+| `Esc` | Go back / Cancel |
+| `q` | Quit |
+| `Ctrl+C` | Quit |
+
+=== Card Detail View Actions
+
+When viewing card details:
+
+| Key | Action |
+|------|---------|
+| `e` | Edit card |
+| `d` | Delete card |
+| `q` or `Esc` | Back to board |
+
+=== TUI Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Clicky: My Project                    [?] Help  [q] Quit   │
+├──────────────────┬───────────────────────────────────────────┤
+│  TODO (3)       │  IN PROGRESS (2)                       │
+│  > PRJ-001 Fix   │    PRJ-003 Update                    │
+│    PRJ-003 Add   │    PRJ-005 Refactor                  │
+│    PRJ-005 Doc   │                                         │
+│                  │                                         │
+│  DONE (5)        │                                         │
+│    PRJ-006 Deploy│                                         │
+│    PRJ-007 Test  │                                         │
+│    ...            │                                         │
+└──────────────────┴───────────────────────────────────────────┘
+```
+
+== Feature Comparison
+
+| Feature | CLI Commands | Interactive Prompts | TUI Mode |
+|---------|--------------|---------------------|-----------|
+| All commands | ✅ | ✅ | Partial |
+| Card selection by ID | ✅ | ❌ | ✅ |
+| Visual board view | ❌ | ❌ | ✅ |
+| Batch operations | ✅ | ❌ | ❌ |
+| Scripting/Automation | ✅ | ❌ | ❌ |
+| Ease of use | ⚠️ | ✅ | ✅ |
+
+== Choosing the Right Mode
+
+=== Use CLI Commands when:
+
+* Running scripts or automation
+* Need fast, keyboard-driven operation
+* Working remotely (SSH)
+* Performing batch operations
+* Know the exact card IDs
+
+=== Use Interactive Prompts when:
+
+* New to Clicky
+* Need help with options
+* Don't remember column/assignee names
+* Want guided workflows
+* Creating/editing cards with details
+
+=== Use TUI Mode when:
+
+* Visualizing board layout
+* Dragging cards between columns
+* Browsing many cards
+* Managing complex workflows
+* Want full-screen experience
+
+== Troubleshooting
+
+=== Interactive prompts not working
+
+Make sure you built with the interactive feature:
+
+```bash
+cargo build --features interactive
+```
+
+### TUI mode not available
+
+Make sure you built with the TUI feature:
+
+```bash
+cargo build --features tui
+```
+
+### Terminal issues
+
+If TUI doesn't display correctly:
+
+1. Check terminal supports colors: `echo $TERM`
+2. Try a different terminal (iTerm2, Terminal.app, Alacritty)
+3. Increase terminal size (minimum 80x24 recommended)
+4. Ensure UTF-8 support is enabled
+
+### Keyboard shortcuts not responding
+
+- Ensure terminal is in normal mode (not editing text)
+- Press `Esc` to exit any editing mode
+- Check that keyboard layout is correct

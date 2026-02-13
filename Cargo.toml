@@ -29,7 +29,10 @@ anyhow = "1.0"
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
 
-# TUI (for future use)
+# Interactive prompts
+inquire = { version = "0.7", optional = true }
+
+# TUI
 ratatui = { version = "0.24", optional = true }
 crossterm = { version = "0.27", optional = true }
 
@@ -45,6 +48,8 @@ tempfile = "3.8"
 [features]
 default = []
 tui = ["ratatui", "crossterm"]
+interactive = ["inquire"]
+full = ["tui", "interactive"]
 
 [profile.release]
 opt-level = 3
