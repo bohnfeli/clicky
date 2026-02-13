@@ -1,7 +1,7 @@
 //! TUI application state.
 
-use crate::application::BoardService;
-use crate::cli::tui::state::{AppState, Focus, InputMode};
+use crate::application::{BoardService, CardService};
+use crate::cli::tui::state::{AppState, CardFormData, Focus, FormField, InputMode};
 use crate::domain::Board;
 use std::path::PathBuf;
 
@@ -22,13 +22,21 @@ pub struct App {
     /// Currently selected card index within column
     pub selected_card: Option<usize>,
     /// Current input string (for editing)
+    #[allow(dead_code)]
     pub input: String,
     /// Input cursor position
+    #[allow(dead_code)]
     pub cursor_position: usize,
     /// Error message to display
     pub error_message: Option<String>,
     /// Whether to show help overlay
     pub show_help: bool,
+    /// Current form field being edited
+    pub form_field: FormField,
+    /// Form data for card creation/editing
+    pub form_data: CardFormData,
+    /// Card ID being edited (None for create mode)
+    pub editing_card_id: Option<String>,
 }
 
 impl App {
@@ -45,6 +53,9 @@ impl App {
             cursor_position: 0,
             error_message: None,
             show_help: false,
+            form_field: FormField::Title,
+            form_data: CardFormData::default(),
+            editing_card_id: None,
         }
     }
 
@@ -159,6 +170,217 @@ impl App {
 
     pub fn clear_error(&mut self) {
         self.error_message = None;
+    }
+
+    pub fn start_create_card(&mut self) {
+        self.clear_form();
+        self.state = AppState::CreateCard;
+        self.form_field = FormField::Title;
+        self.input_mode = InputMode::Normal;
+    }
+
+    pub fn next_form_field(&mut self) {
+        self.form_field = match self.form_field {
+            FormField::Title => FormField::Description,
+            FormField::Description => FormField::Assignee,
+            FormField::Assignee => FormField::Title,
+        };
+    }
+
+    pub fn prev_form_field(&mut self) {
+        self.form_field = match self.form_field {
+            FormField::Title => FormField::Assignee,
+            FormField::Description => FormField::Title,
+            FormField::Assignee => FormField::Description,
+        };
+    }
+
+    pub fn get_current_field_input_mut(&mut self) -> &mut String {
+        match self.form_field {
+            FormField::Title => &mut self.form_data.title,
+            FormField::Description => &mut self.form_data.description,
+            FormField::Assignee => &mut self.form_data.assignee,
+        }
+    }
+
+    pub fn submit_card(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let title = self.form_data.title.trim();
+        if title.is_empty() {
+            self.error_message = Some("Title is required".to_string());
+            return Ok(());
+        }
+
+        let description = if self.form_data.description.trim().is_empty() {
+            None
+        } else {
+            Some(self.form_data.description.clone())
+        };
+
+        let assignee = if self.form_data.assignee.trim().is_empty() {
+            None
+        } else {
+            Some(self.form_data.assignee.clone())
+        };
+
+        let column_id = self.get_current_column().unwrap_or("todo").to_string();
+
+        let card_service = CardService::new();
+        card_service.create(
+            &self.board_path,
+            title.to_string(),
+            description,
+            assignee,
+            Some(column_id),
+        )?;
+
+        self.load_board()?;
+        self.clear_form();
+        self.state = AppState::Board;
+        Ok(())
+    }
+
+    pub fn cancel_card(&mut self) {
+        self.clear_form();
+        self.state = AppState::Board;
+    }
+
+    fn clear_form(&mut self) {
+        self.form_data = CardFormData::default();
+        self.form_field = FormField::Title;
+        self.input_mode = InputMode::Normal;
+        self.editing_card_id = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::application::BoardService;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_form_navigation() {
+        let mut app = App::default();
+
+        app.start_create_card();
+        assert_eq!(app.form_field, FormField::Title);
+
+        app.next_form_field();
+        assert_eq!(app.form_field, FormField::Description);
+
+        app.next_form_field();
+        assert_eq!(app.form_field, FormField::Assignee);
+
+        app.next_form_field();
+        assert_eq!(app.form_field, FormField::Title);
+
+        app.prev_form_field();
+        assert_eq!(app.form_field, FormField::Assignee);
+    }
+
+    #[test]
+    fn test_form_field_input() {
+        let mut app = App::default();
+        app.start_create_card();
+
+        *app.get_current_field_input_mut() = "Test Title".to_string();
+        assert_eq!(app.form_data.title, "Test Title");
+
+        app.next_form_field();
+        *app.get_current_field_input_mut() = "Test Description".to_string();
+        assert_eq!(app.form_data.description, "Test Description");
+
+        app.next_form_field();
+        *app.get_current_field_input_mut() = "Test Assignee".to_string();
+        assert_eq!(app.form_data.assignee, "Test Assignee");
+    }
+
+    #[test]
+    fn test_submit_card_empty_title() {
+        let temp_dir = TempDir::new().unwrap();
+        let board_service = BoardService::new();
+        board_service
+            .initialize(temp_dir.path(), Some("Test".to_string()))
+            .unwrap();
+
+        let mut app = App::new(temp_dir.path().to_path_buf());
+        app.load_board().unwrap();
+        app.start_create_card();
+
+        *app.get_current_field_input_mut() = "".to_string();
+        app.submit_card().unwrap();
+
+        assert!(app.error_message.is_some());
+        assert_eq!(app.error_message, Some("Title is required".to_string()));
+        assert_eq!(app.state, AppState::CreateCard);
+    }
+
+    #[test]
+    fn test_create_card_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let board_service = BoardService::new();
+        board_service
+            .initialize(temp_dir.path(), Some("Test".to_string()))
+            .unwrap();
+
+        let mut app = App::new(temp_dir.path().to_path_buf());
+        app.load_board().unwrap();
+        app.start_create_card();
+
+        *app.get_current_field_input_mut() = "Test Card".to_string();
+        app.next_form_field();
+        *app.get_current_field_input_mut() = "Test Description".to_string();
+        app.next_form_field();
+        *app.get_current_field_input_mut() = "Test Assignee".to_string();
+
+        app.submit_card().unwrap();
+
+        assert!(app.error_message.is_none());
+        assert_eq!(app.state, AppState::Board);
+        assert!(app.board.is_some());
+        assert_eq!(app.board.as_ref().unwrap().cards.len(), 1);
+        assert_eq!(app.board.as_ref().unwrap().cards[0].title, "Test Card");
+    }
+
+    #[test]
+    fn test_cancel_card() {
+        let mut app = App::default();
+        app.start_create_card();
+
+        *app.get_current_field_input_mut() = "Test Title".to_string();
+        app.cancel_card();
+
+        assert_eq!(app.state, AppState::Board);
+        assert_eq!(app.form_data.title, "");
+        assert_eq!(app.form_data.description, "");
+        assert_eq!(app.form_data.assignee, "");
+    }
+
+    #[test]
+    fn test_delete_card() {
+        use crate::application::CardService;
+
+        let temp_dir = TempDir::new().unwrap();
+        let board_service = BoardService::new();
+        board_service
+            .initialize(temp_dir.path(), Some("Test".to_string()))
+            .unwrap();
+
+        let card_service = CardService::new();
+        let created = card_service
+            .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
+            .unwrap();
+
+        let mut app = App::new(temp_dir.path().to_path_buf());
+        app.load_board().unwrap();
+        assert_eq!(app.board.as_ref().unwrap().cards.len(), 1);
+
+        card_service
+            .delete(temp_dir.path(), &created.card_id)
+            .unwrap();
+
+        app.load_board().unwrap();
+        assert_eq!(app.board.as_ref().unwrap().cards.len(), 0);
     }
 }
 

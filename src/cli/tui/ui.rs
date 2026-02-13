@@ -12,9 +12,10 @@ use std::io;
 
 use crate::cli::tui::app::App;
 use crate::cli::tui::state::AppState;
-use crate::cli::tui::state::Focus;
+use crate::cli::tui::state::{Focus, FormField};
 
 /// Type alias for terminal
+#[allow(dead_code)]
 pub type Tui = Terminal<CrosstermBackend<io::Stdout>>;
 
 /// Draw the footer with context-aware hints.
@@ -22,14 +23,14 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
     let hints = match app.state {
         AppState::Board => match app.focus {
             Focus::Columns => {
-                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Details | q Quit | ? Help"
+                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Details | c Create | q Quit | ? Help"
             }
             Focus::Cards => "Esc Exit selection | q Return to columns | ? Help",
             _ => "? Help",
         },
         AppState::CardDetail => "e Edit | d Delete | m Move | q Back | ? Help",
-        AppState::CreateCard => "i Edit | Enter Save | Esc Cancel | ? Help",
-        AppState::EditCard => "i Edit | Enter Save | Esc Cancel | ? Help",
+        AppState::CreateCard => "↑↓ Select field | i Edit | Enter Save | Esc Cancel | ? Help",
+        AppState::EditCard => "↑↓ Select field | i Edit | Enter Save | Esc Cancel | ? Help",
         AppState::ConfirmDelete => "y Confirm | n Cancel",
         AppState::Help => "Esc Close help | ? Toggle",
     };
@@ -317,8 +318,9 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
-            Constraint::Min(5),
             Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(0),
         ])
         .split(area);
 
@@ -332,17 +334,89 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
         .alignment(Alignment::Center);
     frame.render_widget(header, chunks[0]);
 
-    // Input fields
+    // Title field
+    let title_focused = app.form_field == FormField::Title;
     let title_block = Block::default()
         .borders(Borders::ALL)
-        .title(" Title (required) ");
+        .title(if title_focused {
+            " Title (required) * "
+        } else {
+            " Title (required) "
+        })
+        .border_style(if title_focused {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        });
 
-    let title_paragraph = Paragraph::new(app.input.as_str())
+    let title_paragraph = Paragraph::new(app.form_data.title.as_str())
         .block(title_block)
         .wrap(Wrap { trim: false });
     frame.render_widget(title_paragraph, chunks[1]);
 
-    // Footer handled by main draw function
+    // Description field
+    let desc_focused = app.form_field == FormField::Description;
+    let desc_block = Block::default()
+        .borders(Borders::ALL)
+        .title(if desc_focused {
+            " Description * "
+        } else {
+            " Description "
+        })
+        .border_style(if desc_focused {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        });
+
+    let desc_paragraph = Paragraph::new(app.form_data.description.as_str())
+        .block(desc_block)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(desc_paragraph, chunks[2]);
+
+    // Assignee field
+    let assignee_focused = app.form_field == FormField::Assignee;
+    let assignee_block = Block::default()
+        .borders(Borders::ALL)
+        .title(if assignee_focused {
+            " Assignee * "
+        } else {
+            " Assignee "
+        })
+        .border_style(if assignee_focused {
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        });
+
+    let assignee_paragraph = Paragraph::new(app.form_data.assignee.as_str())
+        .block(assignee_block)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(assignee_paragraph, chunks[3]);
+
+    // Column (read-only, shows current selection)
+    let column_name = app
+        .board
+        .as_ref()
+        .and_then(|b| b.columns.get(app.selected_column))
+        .map(|c| c.name.as_str())
+        .unwrap_or("todo");
+
+    let column_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Column (target) ")
+        .style(Style::default().fg(Color::DarkGray));
+
+    let column_paragraph = Paragraph::new(column_name)
+        .block(column_block)
+        .alignment(Alignment::Center);
+    frame.render_widget(column_paragraph, chunks[4]);
 }
 
 /// Draw edit card view.

@@ -49,7 +49,7 @@ fn run_app<B: ratatui::backend::Backend>(
     app: &mut App,
     events: &mut events::EventHandler,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use crossterm::event::{KeyCode, KeyModifiers};
+    use crossterm::event::KeyCode;
 
     let mut should_quit = false;
 
@@ -87,7 +87,7 @@ fn run_app<B: ratatui::backend::Backend>(
 }
 
 fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
-    use crossterm::event::{KeyCode, KeyModifiers};
+    use crossterm::event::KeyCode;
 
     match key.code {
         KeyCode::Left | KeyCode::Char('h') => app.move_left(),
@@ -100,8 +100,8 @@ fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
         KeyCode::Esc => {
             app.exit_cards();
         }
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.state = state::AppState::Board;
+        KeyCode::Char('c') => {
+            app.start_create_card();
         }
         KeyCode::Char('q') => {}
         KeyCode::Char('?') => {
@@ -139,39 +139,46 @@ fn handle_create_card_input(app: &mut App, key: &crossterm::event::KeyEvent) {
 
     match app.input_mode {
         state::InputMode::Normal => match key.code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                app.prev_form_field();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                app.next_form_field();
+            }
             KeyCode::Char('i') => {
                 app.input_mode = state::InputMode::Editing;
             }
+            KeyCode::Enter => {
+                let _ = app.submit_card();
+            }
             KeyCode::Esc => {
-                app.state = state::AppState::Board;
-                app.input.clear();
+                app.cancel_card();
             }
             KeyCode::Char('?') => {
                 app.toggle_help();
             }
             _ => {}
         },
-        state::InputMode::Editing => match key.code {
-            KeyCode::Char(c) => {
-                app.input.push(c);
-            }
-            KeyCode::Backspace => {
-                app.input.pop();
-            }
-            KeyCode::Enter => {
-                if !app.input.trim().is_empty() {
-                    // TODO: Create card
-                    app.input.clear();
-                    app.input_mode = state::InputMode::Normal;
-                    app.state = state::AppState::Board;
+        state::InputMode::Editing => {
+            let input = app.get_current_field_input_mut();
+
+            match key.code {
+                KeyCode::Char(c) => {
+                    input.push(c);
                 }
+                KeyCode::Backspace => {
+                    input.pop();
+                }
+                KeyCode::Enter => {
+                    app.next_form_field();
+                    app.input_mode = state::InputMode::Normal;
+                }
+                KeyCode::Esc => {
+                    app.input_mode = state::InputMode::Normal;
+                }
+                _ => {}
             }
-            KeyCode::Esc => {
-                app.input.clear();
-                app.input_mode = state::InputMode::Normal;
-            }
-            _ => {}
-        },
+        }
     }
 }
 
@@ -180,12 +187,25 @@ fn handle_edit_card_input(app: &mut App, key: &crossterm::event::KeyEvent) {
 }
 
 fn handle_confirm_delete_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crate::application::CardService;
     use crossterm::event::KeyCode;
 
     match key.code {
         KeyCode::Char('y') => {
-            // TODO: Delete card
-            app.state = state::AppState::Board;
+            if let Some(card_id) = app.selected_card_id() {
+                let card_service = CardService::new();
+                match card_service.delete(&app.board_path, &card_id) {
+                    Ok(_) => {
+                        app.selected_card = None;
+                        let _ = app.load_board();
+                        app.state = state::AppState::Board;
+                    }
+                    Err(e) => {
+                        app.error_message = Some(format!("Failed to delete: {}", e));
+                        app.state = state::AppState::CardDetail;
+                    }
+                }
+            }
         }
         KeyCode::Char('n') | KeyCode::Esc => {
             app.state = state::AppState::CardDetail;

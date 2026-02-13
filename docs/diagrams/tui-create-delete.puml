@@ -1,0 +1,97 @@
+@startuml
+!theme plain
+
+actor User
+participant "TUI App" as app
+participant "Form State" as form
+participant "CardService" as card_svc
+participant "BoardService" as board_svc
+participant "Storage" as storage
+
+== Create Card Workflow ==
+
+User -> app : Press 'c' in Board view
+app -> form : start_create_card()
+form -> form : clear_form()
+form -> form : set state to CreateCard
+form -> form : focus on Title field
+
+alt Navigate fields
+    User -> form : Press ↑/↓
+    form -> form : next_form_field() / prev_form_field()
+end
+
+alt Enter text
+    User -> form : Press 'i' to enter edit mode
+    User -> form : Type characters
+    form -> form : Update current field
+    User -> form : Press Enter to save field
+    form -> form : Move to next field
+end
+
+alt Submit card
+    User -> form : Press Enter
+    form -> form : submit_card()
+    form -> form : Validate title (required)
+
+    alt Validation error
+        form -> form : Set error_message
+        form -> app : Stay in CreateCard state
+    else Validation successful
+        form -> card_svc : create(path, title, desc, assignee, column)
+        card_svc -> board_svc : load(path)
+        board_svc -> storage : read JSON
+        storage --> board_svc : Board
+        board_svc --> card_svc : Board
+        card_svc -> card_svc : board.create_card(...)
+        card_svc -> board_svc : save(board, path)
+        board_svc -> storage : write JSON
+        storage --> board_svc : Ok
+        board_svc --> card_svc : Ok
+        card_svc --> form : CreatedCardInfo
+        form -> app : load_board()
+        app -> form : clear_form()
+        form -> app : set state to Board
+    end
+end
+
+alt Cancel card creation
+    User -> form : Press Esc
+    form -> form : cancel_card()
+    form -> form : clear_form()
+    form -> app : set state to Board
+end
+
+== Delete Card Workflow ==
+
+User -> app : Press Enter on card in Board view
+app -> app : enter_cards()
+app -> app : state = CardDetail
+
+User -> app : Press 'd'
+app -> app : state = ConfirmDelete
+
+alt Confirm deletion
+    User -> app : Press 'y'
+    app -> card_svc : delete(path, card_id)
+    card_svc -> board_svc : load(path)
+    board_svc -> storage : read JSON
+    storage --> board_svc : Board
+    board_svc --> card_svc : Board
+    card_svc -> card_svc : board.delete_card(card_id)
+    card_svc -> board_svc : save(board, path)
+    board_svc -> storage : write JSON
+    storage --> board_svc : Ok
+    board_svc --> card_svc : Ok
+    card_svc --> app : Board
+    app -> app : selected_card = None
+    app -> app : load_board()
+    app -> app : state = Board
+end
+
+alt Cancel deletion
+    User -> app : Press 'n' or Esc
+    app -> app : state = CardDetail
+end
+
+@enduml
