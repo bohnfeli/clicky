@@ -64,7 +64,7 @@ fn draw_help_overlay(frame: &mut Frame) {
         Line::from("   e     Edit card"),
         Line::from("   d     Delete card"),
         Line::from("   m     Move card"),
-        Line::from("   q/Esc Return to board"),
+        Line::from("   Esc   Return to board"),
         Line::from(""),
         Line::from(" Press ? or Esc to close "),
     ];
