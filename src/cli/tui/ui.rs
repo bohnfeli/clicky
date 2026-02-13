@@ -23,9 +23,9 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
     let hints = match app.state {
         AppState::Board => match app.focus {
             Focus::Columns => {
-                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Details | c Create | q Quit | ? Help"
+                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Select | c Create | q Quit | ? Help"
             }
-            Focus::Cards => "Esc Exit selection | q Return to columns | ? Help",
+            Focus::Cards => "Enter Details | Esc Deselect | m Move | ? Help",
             _ => "? Help",
         },
         AppState::CardDetail => "e Edit | d Delete | m Move | q Back | ? Help",
@@ -63,6 +63,8 @@ fn draw_help_overlay(frame: &mut Frame) {
         Line::from("   j/↓   Next card"),
         Line::from("   Enter Select card"),
         Line::from("   Esc   Exit selection"),
+        Line::from("   m     Move selected card"),
+        Line::from("   c     Create new card"),
         Line::from(""),
         Line::from(" CARD DETAIL:"),
         Line::from("   e     Edit card"),

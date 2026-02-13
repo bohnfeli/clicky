@@ -104,6 +104,11 @@ fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
         KeyCode::Char('c') => {
             app.start_create_card();
         }
+        KeyCode::Char('m') => {
+            if app.selected_card.is_some() {
+                app.start_move_card();
+            }
+        }
         KeyCode::Char('q') => {}
         KeyCode::Char('?') => {
             app.toggle_help();
