@@ -211,7 +211,7 @@ jobs:
   quality-gate-summary:
     name: Quality Gate Summary
     runs-on: ubuntu-latest
-    needs: [build, test, clippy, format, security, dependency-review, docs]
+    needs: [build, test, clippy, format, security, docs]
     if: always()
 
     steps:
@@ -228,7 +228,6 @@ jobs:
           echo "Clippy: ${{ needs.clippy.result }}"
           echo "Format: ${{ needs.format.result }}"
           echo "Security: ${{ needs.security.result }}"
-          echo "Dependency Review: ${{ needs.dependency-review.result }}"
           echo "Documentation: ${{ needs.docs.result }}"
           echo ""
           
@@ -251,11 +250,6 @@ jobs:
           check_job "Format" "${{ needs.format.result }}" || failed=1
           check_job "Security" "${{ needs.security.result }}" || failed=1
           check_job "Documentation" "${{ needs.docs.result }}" || failed=1
-          
-          # Dependency review is only required for PRs, skip if not a PR
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            check_job "Dependency Review" "${{ needs.dependency-review.result }}" || failed=1
-          fi
           
           if [ $failed -eq 1 ]; then
             echo ""
