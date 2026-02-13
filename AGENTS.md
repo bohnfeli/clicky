@@ -52,6 +52,8 @@ cargo audit
 cargo doc --no-deps --all-features
 ```
 
+**Note**: Minimum supported Rust version is 1.93. CI tests on both Rust 1.93 and stable.
+
 All these checks are automatically run in CI and must pass before merging.
 See [docs/developer/quality-gates.adoc](docs/developer/quality-gates.adoc) for detailed documentation.
 

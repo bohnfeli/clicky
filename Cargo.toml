@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/yourusername/clicky"
 keywords = ["kanban", "cli", "project-management", "productivity"]
 categories = ["command-line-utilities", "development-tools"]
-rust-version = "1.70"
+rust-version = "1.93"
 
 [[bin]]
 name = "clicky"

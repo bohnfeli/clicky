@@ -171,7 +171,7 @@ To enforce quality gates, configure branch protection in GitHub:
 
 The quality gates workflow uses a matrix strategy to test across multiple Rust versions:
 
-* **Rust 1.70**: Minimum supported version
+* **Rust 1.93**: Minimum supported version
 * **Stable**: Latest stable Rust release
 
 Each quality check runs in parallel for faster feedback. The final `quality-gate-summary` job aggregates all results and fails if any check fails.

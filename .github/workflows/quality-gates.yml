@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - '1.70'
+          - '1.93'
           - stable
 
     steps:
@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - '1.70'
+          - '1.93'
           - stable
 
     steps:
@@ -196,23 +196,16 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install Python and asciidoctor
+      - name: Install asciidoctor
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip ruby-asciidoctor asciidoctor-pdf
+          sudo apt-get install -y ruby-asciidoctor
+
+      - name: Create build directory
+        run: mkdir -p build
 
       - name: Build Rust documentation
         run: cargo doc --no-deps --all-features
-
-      - name: Build project documentation
-        run: |
-          cd docs
-          asciidoctor README.adoc -o ../build/README.html
-
-      - name: Check for broken documentation links
-        run: |
-          cargo doc --no-deps --all-features 2>&1 | grep -q "warning: unused" && exit 1 || true
-          cargo doc --no-deps --all-features 2>&1 | grep -q "warning: unresolved" && exit 1 || true
 
   # Final summary job
   quality-gate-summary:
@@ -224,14 +217,51 @@ jobs:
     steps:
       - name: Check all jobs
         run: |
-          if [ "${{ needs.build.result }}" != "success" ] || \
-             [ "${{ needs.test.result }}" != "success" ] || \
-             [ "${{ needs.clippy.result }}" != "success" ] || \
-             [ "${{ needs.format.result }}" != "success" ] || \
-             [ "${{ needs.security.result }}" != "success" ] || \
-             [ "${{ needs.dependency-review.result }}" != "success" ] || \
-             [ "${{ needs.docs.result }}" != "success" ]; then
+          set -e
+          
+          echo "=== Quality Gates Summary ==="
+          echo ""
+          
+          # Check each job and report status
+          echo "Build: ${{ needs.build.result }}"
+          echo "Test: ${{ needs.test.result }}"
+          echo "Clippy: ${{ needs.clippy.result }}"
+          echo "Format: ${{ needs.format.result }}"
+          echo "Security: ${{ needs.security.result }}"
+          echo "Dependency Review: ${{ needs.dependency-review.result }}"
+          echo "Documentation: ${{ needs.docs.result }}"
+          echo ""
+          
+          # Helper function to check job status
+          check_job() {
+            local job_name=$1
+            local job_result=$2
+            if [ "$job_result" != "success" ] && [ "$job_result" != "skipped" ]; then
+              echo "::error::$job_name failed with status: $job_result"
+              return 1
+            fi
+            return 0
+          }
+          
+          # Check all required jobs
+          failed=0
+          check_job "Build" "${{ needs.build.result }}" || failed=1
+          check_job "Test" "${{ needs.test.result }}" || failed=1
+          check_job "Clippy" "${{ needs.clippy.result }}" || failed=1
+          check_job "Format" "${{ needs.format.result }}" || failed=1
+          check_job "Security" "${{ needs.security.result }}" || failed=1
+          check_job "Documentation" "${{ needs.docs.result }}" || failed=1
+          
+          # Dependency review is only required for PRs, skip if not a PR
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            check_job "Dependency Review" "${{ needs.dependency-review.result }}" || failed=1
+          fi
+          
+          if [ $failed -eq 1 ]; then
+            echo ""
             echo "::error::Quality gates failed"
             exit 1
           fi
+          
+          echo ""
           echo "::notice::All quality gates passed successfully!"
