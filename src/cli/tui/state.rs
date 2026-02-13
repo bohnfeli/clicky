@@ -13,6 +13,7 @@ pub enum AppState {
     /// Confirm deletion
     ConfirmDelete,
     /// Help overlay
+    #[allow(dead_code)]
     Help,
 }
 
@@ -23,21 +24,32 @@ pub enum Focus {
     /// Focused on cards
     Cards,
     /// Focused on card details
+    #[allow(dead_code)]
     CardDetails,
     /// Focused on input field
+    #[allow(dead_code)]
     Input,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum InputMode {
     /// Normal navigation mode
+    #[default]
     Normal,
     /// Editing text input
     Editing,
 }
 
-impl Default for InputMode {
-    fn default() -> Self {
-        Self::Normal
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FormField {
+    Title,
+    Description,
+    Assignee,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct CardFormData {
+    pub title: String,
+    pub description: String,
+    pub assignee: String,
 }

@@ -11,6 +11,7 @@ pub enum Event {
 }
 
 pub struct EventHandler {
+    #[allow(dead_code)]
     sender: Sender<Event>,
     receiver: Receiver<Event>,
     handler: Option<thread::JoinHandle<()>>,
@@ -58,6 +59,7 @@ impl EventHandler {
         }
     }
 
+    #[allow(dead_code)]
     pub fn next(&mut self) -> Result<Event, std::io::Error> {
         self.receiver.recv().map_err(|e| {
             std::io::Error::new(
