@@ -23,15 +23,16 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
     let hints = match app.state {
         AppState::Board => match app.focus {
             Focus::Columns => {
-                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Details | c Create | q Quit | ? Help"
+                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Select | c Create | q Quit | ? Help"
             }
-            Focus::Cards => "Esc Exit selection | q Return to columns | ? Help",
+            Focus::Cards => "Enter Details | Esc Deselect | m Move | ? Help",
             _ => "? Help",
         },
         AppState::CardDetail => "e Edit | d Delete | m Move | q Back | ? Help",
         AppState::CreateCard => "↑↓ Select field | i Edit | Enter Save | Esc Cancel | ? Help",
         AppState::EditCard => "↑↓ Select field | i Edit | Enter Save | Esc Cancel | ? Help",
         AppState::ConfirmDelete => "y Confirm | n Cancel",
+        AppState::MoveCard => "h/l/← → Select column | Enter Confirm | Esc Cancel | ? Help",
         AppState::Help => "Esc Close help | ? Toggle",
     };
 
@@ -62,6 +63,8 @@ fn draw_help_overlay(frame: &mut Frame) {
         Line::from("   j/↓   Next card"),
         Line::from("   Enter Select card"),
         Line::from("   Esc   Exit selection"),
+        Line::from("   m     Move selected card"),
+        Line::from("   c     Create new card"),
         Line::from(""),
         Line::from(" CARD DETAIL:"),
         Line::from("   e     Edit card"),
@@ -114,6 +117,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         AppState::CreateCard => draw_create_card_view(frame, app, chunks[1]),
         AppState::EditCard => draw_edit_card_view(frame, app, chunks[1]),
         AppState::ConfirmDelete => draw_confirm_delete_view(frame, app, chunks[1]),
+        AppState::MoveCard => draw_move_card_view(frame, app, chunks[1]),
         AppState::Help => {}
     }
 
@@ -452,6 +456,83 @@ fn draw_confirm_delete_view(frame: &mut Frame, app: &App, area: Rect) {
     .alignment(Alignment::Center);
 
     frame.render_widget(paragraph, area);
+}
+
+/// Draw move card view with column selection.
+fn draw_move_card_view(frame: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(10),
+            Constraint::Length(3),
+        ])
+        .split(area);
+
+    let header = Paragraph::new(" Move Card ")
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center);
+    frame.render_widget(header, chunks[0]);
+
+    if let Some(card_id) = app.selected_card_id() {
+        if let Some(board) = &app.board {
+            if let Some(card) = board.get_card(&card_id) {
+                let card_info = format!("Card: {} - {}", card.id, card.title);
+                let paragraph = Paragraph::new(card_info).alignment(Alignment::Center);
+                frame.render_widget(paragraph, chunks[1]);
+            }
+        }
+    }
+
+    if let Some(board) = &app.board {
+        let column_items: Vec<ListItem> = board
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, column)| {
+                let is_selected = i == app.selected_target_column;
+                let style = if is_selected {
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+
+                let text = format!(
+                    "  {} ({}) ",
+                    column.name,
+                    board
+                        .cards
+                        .iter()
+                        .filter(|c| c.column_id == column.id)
+                        .count()
+                );
+                ListItem::new(Span::styled(text, style))
+            })
+            .collect();
+
+        let list = List::new(column_items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Select Target Column "),
+            )
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD));
+        frame.render_widget(list, chunks[2]);
+    }
+
+    let hint = " h/l/← → Select column | Enter Confirm | Esc Cancel ";
+    let paragraph = Paragraph::new(hint)
+        .style(Style::default().fg(Color::Cyan))
+        .alignment(Alignment::Center);
+    frame.render_widget(paragraph, chunks[3]);
 }
 
 /// Draw error message overlay.

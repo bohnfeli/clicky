@@ -65,6 +65,7 @@ fn run_app<B: ratatui::backend::Backend>(
                         state::AppState::CreateCard => handle_create_card_input(app, &key),
                         state::AppState::EditCard => handle_edit_card_input(app, &key),
                         state::AppState::ConfirmDelete => handle_confirm_delete_input(app, &key),
+                        state::AppState::MoveCard => handle_move_card_input(app, &key),
                         state::AppState::Help => {
                             if key.code == KeyCode::Esc || key.code == KeyCode::Char('?') {
                                 app.toggle_help();
@@ -87,6 +88,7 @@ fn run_app<B: ratatui::backend::Backend>(
 }
 
 fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crate::cli::tui::state::Focus;
     use crossterm::event::KeyCode;
 
     match key.code {
@@ -95,13 +97,22 @@ fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
         KeyCode::Enter => {
-            app.enter_cards();
+            if app.focus == Focus::Cards {
+                app.enter_card_detail();
+            } else {
+                app.enter_cards();
+            }
         }
         KeyCode::Esc => {
             app.exit_cards();
         }
         KeyCode::Char('c') => {
             app.start_create_card();
+        }
+        KeyCode::Char('m') => {
+            if app.selected_card.is_some() {
+                app.start_move_card();
+            }
         }
         KeyCode::Char('q') => {}
         KeyCode::Char('?') => {
@@ -122,7 +133,7 @@ fn handle_card_detail_input(app: &mut App, key: &crossterm::event::KeyEvent) {
             app.state = state::AppState::ConfirmDelete;
         }
         KeyCode::Char('m') => {
-            // Move card - would require implementing move from card detail
+            app.start_move_card();
         }
         KeyCode::Esc | KeyCode::Char('q') => {
             app.state = state::AppState::Board;
@@ -209,6 +220,31 @@ fn handle_confirm_delete_input(app: &mut App, key: &crossterm::event::KeyEvent) 
         }
         KeyCode::Char('n') | KeyCode::Esc => {
             app.state = state::AppState::CardDetail;
+        }
+        KeyCode::Char('?') => {
+            app.toggle_help();
+        }
+        _ => {}
+    }
+}
+
+fn handle_move_card_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crossterm::event::KeyCode;
+
+    match key.code {
+        KeyCode::Left | KeyCode::Char('h') => {
+            app.move_card_left();
+        }
+        KeyCode::Right | KeyCode::Char('l') => {
+            app.move_card_right();
+        }
+        KeyCode::Enter => {
+            if let Err(e) = app.confirm_move_card() {
+                app.error_message = Some(format!("Failed to move card: {}", e));
+            }
+        }
+        KeyCode::Esc => {
+            app.cancel_move_card();
         }
         KeyCode::Char('?') => {
             app.toggle_help();
