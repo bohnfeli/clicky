@@ -88,6 +88,7 @@ fn run_app<B: ratatui::backend::Backend>(
 }
 
 fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
+    use crate::cli::tui::state::Focus;
     use crossterm::event::KeyCode;
 
     match key.code {
@@ -96,7 +97,11 @@ fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
         KeyCode::Enter => {
-            app.enter_cards();
+            if app.focus == Focus::Cards {
+                app.enter_card_detail();
+            } else {
+                app.enter_cards();
+            }
         }
         KeyCode::Esc => {
             app.exit_cards();

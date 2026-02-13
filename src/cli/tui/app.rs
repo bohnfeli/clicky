@@ -166,6 +166,12 @@ impl App {
         self.selected_card = Some(0);
     }
 
+    pub fn enter_card_detail(&mut self) {
+        if self.focus == Focus::Cards && self.selected_card.is_some() {
+            self.state = AppState::CardDetail;
+        }
+    }
+
     pub fn exit_cards(&mut self) {
         self.focus = Focus::Columns;
         self.selected_card = None;
@@ -652,6 +658,34 @@ mod tests {
             .get_card(&created.card_id)
             .unwrap();
         assert_eq!(card.column_id, "in_progress");
+    }
+
+    #[test]
+    fn test_enter_cards_focus_transitions_to_card_detail() {
+        let temp_dir = TempDir::new().unwrap();
+        let board_service = BoardService::new();
+        board_service
+            .initialize(temp_dir.path(), Some("Test".to_string()))
+            .unwrap();
+
+        let card_service = CardService::new();
+        let _created = card_service
+            .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
+            .unwrap();
+
+        let mut app = App::new(temp_dir.path().to_path_buf());
+        app.load_board().unwrap();
+        app.selected_column = 0;
+
+        assert_eq!(app.state, AppState::Board);
+        assert_eq!(app.focus, Focus::Columns);
+
+        app.enter_cards();
+        assert_eq!(app.focus, Focus::Cards);
+        assert_eq!(app.selected_card, Some(0));
+
+        app.enter_card_detail();
+        assert_eq!(app.state, AppState::CardDetail);
     }
 }
 
