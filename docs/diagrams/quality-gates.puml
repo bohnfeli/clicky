@@ -1,0 +1,49 @@
+@startuml Quality Gates Flow
+
+title Quality Gates Process Flow
+
+actor Developer as dev
+participant "Git Push" as git
+participant "GitHub Actions" as ci
+package "Quality Gates" as gates {
+    [Build] as build
+    [Test] as test
+    [Clippy] as clippy
+    [Format Check] as fmt
+    [Security Audit] as audit
+    [Dependency Review] as dep_review
+    [Documentation] as docs
+}
+participant "Quality Gate Summary" as summary
+participant "PR Merge" as merge
+
+dev -> git : Push changes / Create PR
+git -> ci : Trigger workflow
+ci -> build : Build with all features
+ci -> test : Run tests
+ci -> clippy : Run linter
+ci -> fmt : Check formatting
+ci -> audit : Security audit
+ci -> dep_review : Check dependencies
+ci -> docs : Build docs
+
+par Parallel Checks
+    build -> summary : Result
+    test -> summary : Result
+    clippy -> summary : Result
+    fmt -> summary : Result
+    audit -> summary : Result
+    dep_review -> summary : Result
+    docs -> summary : Result
+end
+
+summary -> merge : All checks passed?
+
+alt All Passed
+    merge --> dev : PR can be merged
+else Any Failed
+    merge --> dev : PR blocked - fix issues
+    dev -> git : Push fixes
+end
+
+@enduml

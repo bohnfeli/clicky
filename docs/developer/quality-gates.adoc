@@ -1,0 +1,289 @@
+= Quality Gates
+
+Quality gates ensure that all code contributions meet the project's standards before being merged into the main codebase. This document describes the quality checks that are automatically run on every pull request and how to run them locally.
+
+== Overview
+
+The Clicky project uses GitHub Actions to enforce quality gates. All checks must pass before a pull request can be merged to the `main` or `develop` branches.
+
+image::../diagrams/quality-gates.svg[Quality Gates Flow, role="diagram"]
+
+== Quality Checks
+
+=== 1. Build
+
+Ensures that the project builds successfully with all features enabled.
+
+* **Command**: `cargo build --all-features`
+* **What it checks**:
+  - Code compiles without errors
+  - All features are compatible
+  - Dependencies are correctly specified
+* **Failure conditions**:
+  - Compilation errors
+  - Missing dependencies
+  - Feature incompatibilities
+
+=== 2. Test
+
+Runs all unit and integration tests with full code coverage.
+
+* **Commands**:
+  - `cargo test --all-features` (debug build)
+  - `cargo test --all-features --release` (release build)
+* **What it checks**:
+  - All unit tests pass
+  - All integration tests pass
+  - Tests work in both debug and release modes
+* **Failure conditions**:
+  - Any test fails
+  - Test panics or assertions fail
+
+=== 3. Clippy Linting
+
+Runs the Rust linter to catch code smells, potential bugs, and style issues.
+
+* **Command**: `cargo clippy --all-features -- -D warnings`
+* **What it checks**:
+  - Potential bugs (e.g., unused code, dead code)
+  - Code style and readability issues
+  - Performance suggestions
+  - Correct usage of Rust patterns
+* **Failure conditions**:
+  - Any clippy warnings (treated as errors)
+  - Code that doesn't follow Rust best practices
+
+=== 4. Format Check
+
+Ensures that all code follows the standard Rust formatting guidelines.
+
+* **Command**: `cargo fmt -- --check`
+* **What it checks**:
+  - Consistent code formatting
+  - Proper indentation and line length
+  - Standard Rust style
+* **Failure conditions**:
+  - Code that is not properly formatted
+* **How to fix**:
+  - Run `cargo fmt` to automatically format the code
+
+=== 5. Security Audit
+
+Scans dependencies for known security vulnerabilities.
+
+* **Command**: `cargo audit`
+* **What it checks**:
+  - Known vulnerabilities in dependencies
+  - CVEs and security advisories
+* **Failure conditions**:
+  - High or critical severity vulnerabilities
+  - Outdated vulnerable dependencies
+* **How to fix**:
+  - Update vulnerable dependencies: `cargo update`
+  - Run `cargo audit --fix` (experimental)
+
+=== 6. Dependency Review
+
+Checks for new or changed dependencies in pull requests.
+
+* **Tool**: GitHub's built-in dependency review action
+* **What it checks**:
+  - New dependencies added in the PR
+  - Changes to dependency versions
+  - License compatibility
+  - Severity of known vulnerabilities
+* **Failure conditions**:
+  - High-severity vulnerabilities in dependencies
+  - Incompatible licenses
+
+=== 7. Documentation
+
+Ensures that documentation builds correctly and is complete.
+
+* **Commands**:
+  - `cargo doc --no-deps --all-features` (Rust documentation)
+  - `asciidoctor README.adoc` (Project documentation)
+* **What it checks**:
+  - All documented items build without warnings
+  - No broken documentation links
+  - Public APIs have documentation
+* **Failure conditions**:
+  - Documentation build errors
+  - Broken links
+  - Undocumented public items
+
+== Running Checks Locally
+
+Before pushing your changes, run all quality checks locally:
+
+[source,bash]
+----
+# Install required tools
+cargo install cargo-audit
+
+# Run all quality checks
+make check
+----
+
+If you don't have a Makefile, run each check individually:
+
+[source,bash]
+----
+# Build
+cargo build --all-features
+
+# Test
+cargo test --all-features
+
+# Lint
+cargo clippy --all-features -- -D warnings
+
+# Format check
+cargo fmt -- --check
+
+# Security audit
+cargo audit
+
+# Documentation
+cargo doc --no-deps --all-features
+----
+
+== Branch Protection Rules
+
+To enforce quality gates, configure branch protection in GitHub:
+
+1. Go to **Settings > Branches**
+2. Add rule for `main` and `develop` branches
+3. Enable the following settings:
+   - *Require status checks to pass before merging*
+   - *Require branches to be up to date before merging*
+   - Select all quality gate checks as required:
+     - Build (all matrix versions)
+     - Test (all matrix versions)
+     - Clippy
+     - Format Check
+     - Security Audit
+     - Dependency Review
+     - Documentation
+     - Quality Gate Summary
+
+== CI/CD Architecture
+
+The quality gates workflow uses a matrix strategy to test across multiple Rust versions:
+
+* **Rust 1.93**: Minimum supported version
+* **Stable**: Latest stable Rust release
+
+Each quality check runs in parallel for faster feedback. The final `quality-gate-summary` job aggregates all results and fails if any check fails.
+
+image::../diagrams/ci-architecture.svg[CI Architecture, role="diagram"]
+
+== Troubleshooting
+
+=== Build Failures
+
+*Issue*: `cargo build --all-features` fails
+
+*Possible causes*:
+- Compilation error in your code
+- Incompatible feature combinations
+- Missing or incorrect dependencies
+
+*Solutions*:
+- Check the compiler error message
+- Run `cargo build --verbose` for detailed output
+- Ensure all dependencies are in `Cargo.toml`
+- Test with individual features: `cargo build --features tui`
+
+=== Test Failures
+
+*Issue*: `cargo test` fails
+
+*Possible causes*:
+- Logic error in code
+- Broken test
+- Test environment issues
+
+*Solutions*:
+- Run failing test individually: `cargo test test_name`
+- Run with output: `cargo test -- --nocapture`
+- Check test logs for assertion failures
+- Ensure tests follow Arrange-Act-Assert pattern
+
+=== Clippy Warnings
+
+*Issue*: `cargo clippy` reports warnings
+
+*Possible causes*:
+- Code doesn't follow Rust best practices
+- Potential bugs or performance issues
+
+*Solutions*:
+- Read the clippy warning carefully
+- Apply the suggested fix
+- If you believe the warning is false positive, add `#[allow(clippy::lint_name)]` attribute
+
+=== Format Check Failures
+
+*Issue*: `cargo fmt -- --check` fails
+
+*Possible causes*:
+- Code not formatted according to Rust standards
+
+*Solutions*:
+- Run `cargo fmt` to auto-format code
+- Commit the formatted changes
+
+=== Security Audit Failures
+
+*Issue*: `cargo audit` finds vulnerabilities
+
+*Possible causes*:
+- Dependency with known CVE
+- Outdated dependency version
+
+*Solutions*:
+- Update the vulnerable dependency: `cargo update package_name`
+- Check for security advisories: `cargo advisory-db list`
+- If update isn't possible, create a temporary exception (rare)
+
+=== Documentation Build Failures
+
+*Issue*: `cargo doc` fails or shows warnings
+
+*Possible causes*:
+- Broken documentation links
+- Missing documentation on public items
+- Invalid doc comments
+
+*Solutions*:
+- Fix broken links
+- Add missing documentation with `///`
+- Run `cargo doc --open` to view docs locally
+
+== Continuous Improvement
+
+Quality gates evolve with the project. To suggest improvements:
+
+1. Open an issue describing the new check or change
+2. Update this document with the rationale
+3. Modify `.github/workflows/quality-gates.yml`
+4. Test the workflow on a feature branch
+5. Submit a pull request
+
+== Best Practices
+
+* **Run checks locally before pushing** - Saves time and CI resources
+* **Fix one issue at a time** - Easier to understand and debug
+* **Keep PRs small** - Faster reviews and easier to fix issues
+* **Write tests for bugs** - Follow Test Driven Bugfixing
+* **Document your changes** - Update relevant docs alongside code
+* **Monitor security advisories** - Stay informed about Rust ecosystem
+
+== References
+
+* xref:testing.adoc[Testing Guidelines]
+* xref:architecture.adoc[Architecture Documentation]
+* xref:contributing.adoc[Contributing Guide]
+* https://rust-lang.github.io/rust-clippy/[Clippy Documentation]
+* https://doc.rust.org/cargo/[Cargo Documentation]

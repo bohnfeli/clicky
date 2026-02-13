@@ -328,7 +328,7 @@ fn cmd_list(
                 c.column_id == column.id
                     && assignee_filter
                         .as_ref()
-                        .map_or(true, |a| c.assignee.as_ref() == Some(a))
+                        .is_none_or(|a| c.assignee.as_ref() == Some(a))
             })
             .collect();
 

@@ -33,6 +33,7 @@ Guidelines for contributors, development setup, testing procedures, and architec
 * xref:user-guide/interactive-mode.adoc[Interactive Mode Guide]
 * xref:arc42/01-introduction.adoc[Architecture Introduction]
 * xref:developer/contributing.adoc[Contributing Guidelines]
+* xref:developer/quality-gates.adoc[Quality Gates Documentation]
 
 == Project Information
 
