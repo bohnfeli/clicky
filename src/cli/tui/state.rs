@@ -12,6 +12,8 @@ pub enum AppState {
     EditCard,
     /// Confirm deletion
     ConfirmDelete,
+    /// Move card to different column
+    MoveCard,
     /// Help overlay
     #[allow(dead_code)]
     Help,
