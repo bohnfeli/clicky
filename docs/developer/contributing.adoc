@@ -122,13 +122,19 @@ test: add integration tests for CLI
 
 [source,bash]
 ----
+# Run all quality gates locally first
+make check
+
+# Push changes
 git push -u origin feature/your-feature-name
 ----
 
 Then create a Pull Request on GitHub with:
 * Clear description of changes
 * Reference to related issues
-* Test results
+* Ensure all quality gates pass
+
+NOTE: All quality gates must pass before your PR can be merged. See xref:quality-gates.adoc[Quality Gates Documentation] for details.
 
 == Code Style
 

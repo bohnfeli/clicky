@@ -18,6 +18,43 @@
 - Store all insights in the arc42 documentation under `./docs`
 - Use PlantUML diagrams for documenting and planning business logic
 
+## Quality Gates
+
+Before creating a PR, ensure all quality gates pass locally:
+
+```bash
+# Install required tools
+cargo install cargo-audit
+
+# Run all quality gates
+make check
+```
+
+Or run individual checks:
+
+```bash
+# Build with all features
+cargo build --all-features
+
+# Run all tests
+cargo test --all-features
+
+# Run clippy linter
+cargo clippy --all-features -- -D warnings
+
+# Check formatting
+cargo fmt -- --check
+
+# Security audit
+cargo audit
+
+# Build documentation
+cargo doc --no-deps --all-features
+```
+
+All these checks are automatically run in CI and must pass before merging.
+See [docs/developer/quality-gates.adoc](docs/developer/quality-gates.adoc) for detailed documentation.
+
 ## Build Commands
 
 ```bash

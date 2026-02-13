@@ -1,0 +1,83 @@
+@startuml CI Architecture
+
+title CI/CD Architecture for Quality Gates
+
+actor "Developer" as dev
+package "GitHub Actions" as github {
+    package "Triggers" as triggers {
+        [Push to branches] as push
+        [Pull Request] as pr
+    }
+    
+    package "Matrix Strategy" as matrix {
+        participant "Rust 1.70\n(Minimum)" as rust170
+        participant "Rust Stable\n(Latest)" as rust_stable
+    }
+    
+    package "Quality Gates" as gates {
+        [Build] as build
+        [Test] as test
+        [Clippy] as clippy
+        [Format Check] as fmt
+        [Security Audit] as audit
+        [Dependency Review] as dep_review
+        [Documentation] as docs
+    }
+    
+    [Quality Gate Summary] as summary
+}
+
+database "Cargo Registry\nCache" as cache_reg
+database "Git Index\nCache" as cache_git
+database "Target Build\nCache" as cache_target
+cloud "GitHub Dependency\nDatabase" as dep_db
+
+dev -> triggers : Push or PR
+triggers -> matrix : Spawn jobs
+
+matrix -> build : Build job
+matrix -> test : Test job
+
+build -> cache_reg : Check cache
+build -> cache_git : Check cache
+build -> cache_target : Check cache
+
+build -> build : cargo build\n--all-features
+build -> summary : Result
+
+test -> cache_reg : Check cache
+test -> cache_git : Check cache
+test -> cache_target : Check cache
+
+test -> test : cargo test\n--all-features
+test -> summary : Result
+
+clippy -> clippy : cargo clippy\n--all-features\n-D warnings
+clippy -> summary : Result
+
+fmt -> fmt : cargo fmt\n--check
+fmt -> summary : Result
+
+audit -> dep_db : Check advisories
+audit -> audit : cargo audit
+audit -> summary : Result
+
+dep_review -> dep_review : Check new deps\nand licenses
+dep_review -> summary : Result
+
+docs -> docs : cargo doc\n--no-deps\n--all-features
+docs -> summary : Result
+
+summary -> dev : Report status
+
+note right of gates
+  All checks run in parallel
+  for fast feedback
+end note
+
+note right of matrix
+  Tests compatibility
+  across Rust versions
+end note
+
+@enduml
