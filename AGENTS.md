@@ -205,6 +205,7 @@ struct Args {
 
 ### Testing
 - Unit tests in `src/` files with `#[cfg(test)]` module
+- Put unit tests in *_tests.rs files next to the tested file.
 - Integration tests in `tests/` directory
 - Use `tempfile` crate for temporary files in tests
 - Use `assert_cmd` and `predicates` for CLI testing
