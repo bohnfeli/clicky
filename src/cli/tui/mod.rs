@@ -92,8 +92,20 @@ fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
     use crossterm::event::KeyCode;
 
     match key.code {
-        KeyCode::Left | KeyCode::Char('h') => app.move_left(),
-        KeyCode::Right | KeyCode::Char('l') => app.move_right(),
+        KeyCode::Left | KeyCode::Char('h') => {
+            if app.card_selected {
+                let _ = app.quick_move_card_left();
+            } else {
+                app.move_left();
+            }
+        }
+        KeyCode::Right | KeyCode::Char('l') => {
+            if app.card_selected {
+                let _ = app.quick_move_card_right();
+            } else {
+                app.move_right();
+            }
+        }
         KeyCode::Up | KeyCode::Char('k') => app.move_up(),
         KeyCode::Down | KeyCode::Char('j') => app.move_down(),
         KeyCode::Enter => {
@@ -104,13 +116,17 @@ fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
             }
         }
         KeyCode::Esc => {
-            app.exit_cards();
+            if app.card_selected {
+                app.deselect_card();
+            } else {
+                app.exit_cards();
+            }
         }
         KeyCode::Char('c') => {
             app.start_create_card();
         }
         KeyCode::Char('m') => {
-            if app.selected_card.is_some() {
+            if app.get_selected_card_index().is_some() && !app.card_selected {
                 app.start_move_card();
             }
         }
@@ -137,6 +153,7 @@ fn handle_card_detail_input(app: &mut App, key: &crossterm::event::KeyEvent) {
         }
         KeyCode::Esc | KeyCode::Char('q') => {
             app.state = state::AppState::Board;
+            app.card_selected = false;
         }
         KeyCode::Char('?') => {
             app.toggle_help();
@@ -208,6 +225,7 @@ fn handle_confirm_delete_input(app: &mut App, key: &crossterm::event::KeyEvent) 
                 match card_service.delete(&app.board_path, &card_id) {
                     Ok(_) => {
                         app.selected_card = None;
+                        app.selected_card_id = None;
                         let _ = app.load_board();
                         app.state = state::AppState::Board;
                     }
