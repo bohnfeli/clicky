@@ -154,6 +154,7 @@ impl App {
             self.selected_card_id = None;
             self.pre_selected_card = None;
             self.focus = Focus::Columns;
+            self.init_pre_selected_card();
         }
     }
 
@@ -165,6 +166,7 @@ impl App {
                 self.selected_card_id = None;
                 self.pre_selected_card = None;
                 self.focus = Focus::Columns;
+                self.init_pre_selected_card();
             }
         }
     }
@@ -281,6 +283,21 @@ impl App {
             self.enter_cards();
         }
         self.state = AppState::CardDetail;
+    }
+
+    fn init_pre_selected_card(&mut self) {
+        if let Some(board) = &self.board {
+            if let Some(column) = board.columns.get(self.selected_column) {
+                let card_count = board
+                    .cards
+                    .iter()
+                    .filter(|c| c.column_id == column.id)
+                    .count();
+                if card_count > 0 {
+                    self.pre_selected_card = Some(0);
+                }
+            }
+        }
     }
 
     pub fn exit_cards(&mut self) {
@@ -477,6 +494,7 @@ impl App {
         self.selected_card = None;
         self.selected_card_id = None;
         self.focus = Focus::Columns;
+        self.init_pre_selected_card();
     }
 
     fn clear_form(&mut self) {

@@ -1102,11 +1102,14 @@ fn test_move_left_resets_pre_selected_card() {
         .unwrap();
 
     let card_service = CardService::new();
-    let card1 = card_service
+    card_service
         .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
         .unwrap();
+    let card2 = card_service
+        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
+        .unwrap();
     card_service
-        .move_to(temp_dir.path(), &card1.card_id, "in_progress")
+        .move_to(temp_dir.path(), &card2.card_id, "in_progress")
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
@@ -1119,7 +1122,7 @@ fn test_move_left_resets_pre_selected_card() {
     app.move_left();
 
     assert_eq!(app.selected_column, 0);
-    assert!(app.pre_selected_card.is_none());
+    assert_eq!(app.pre_selected_card, Some(0));
 }
 
 #[test]
@@ -1134,11 +1137,14 @@ fn test_move_right_resets_pre_selected_card() {
     card_service
         .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
         .unwrap();
-    let card2 = card_service
+    card_service
         .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
         .unwrap();
+    let card3 = card_service
+        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
+        .unwrap();
     card_service
-        .move_to(temp_dir.path(), &card2.card_id, "in_progress")
+        .move_to(temp_dir.path(), &card3.card_id, "in_progress")
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
@@ -1151,7 +1157,7 @@ fn test_move_right_resets_pre_selected_card() {
     app.move_right();
 
     assert_eq!(app.selected_column, 1);
-    assert!(app.pre_selected_card.is_none());
+    assert_eq!(app.pre_selected_card, Some(0));
 }
 
 #[test]
