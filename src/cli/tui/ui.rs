@@ -25,7 +25,13 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
             Focus::Columns => {
                 "h/l/← → Select column | k/j/↑↓ Navigate | Enter Select | c Create | q Quit | ? Help"
             }
-            Focus::Cards => "Enter Details | Esc Deselect | m Move | ? Help",
+            Focus::Cards => {
+                if app.card_selected {
+                    "Enter Details | ←/→/h/l Move card | Esc Deselect | q Quit | ? Help"
+                } else {
+                    "Enter Select card | Esc Deselect | q Quit | ? Help"
+                }
+            }
             _ => "? Help",
         },
         AppState::CardDetail => "e Edit | d Delete | m Move | q Back | ? Help",
@@ -61,9 +67,10 @@ fn draw_help_overlay(frame: &mut Frame) {
         Line::from("   l/→   Next column"),
         Line::from("   k/↑   Previous card"),
         Line::from("   j/↓   Next card"),
-        Line::from("   Enter Select card"),
-        Line::from("   Esc   Exit selection"),
-        Line::from("   m     Move selected card"),
+        Line::from("   Enter Select card (first press)"),
+        Line::from("   Enter Show details (second press)"),
+        Line::from("   ←/→   Move selected card between columns"),
+        Line::from("   Esc   Deselect card / Exit selection"),
         Line::from("   c     Create new card"),
         Line::from(""),
         Line::from(" CARD DETAIL:"),
@@ -206,7 +213,7 @@ fn draw_column(frame: &mut Frame, area: Rect, app: &App, column_id: &str, index:
                 .unwrap_or_default();
 
             let is_selected =
-                app.selected_card == Some(i) && is_focused && app.focus == Focus::Cards;
+                app.get_selected_card_index() == Some(i) && is_focused && app.focus == Focus::Cards;
 
             let style = if is_selected {
                 Style::default()

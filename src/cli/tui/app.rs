@@ -21,6 +21,8 @@ pub struct App {
     pub selected_column: usize,
     /// Currently selected card index within column
     pub selected_card: Option<usize>,
+    /// Currently selected card ID
+    pub selected_card_id: Option<String>,
     /// Currently selected target column for moving cards
     pub selected_target_column: usize,
     /// Current input string (for editing)
@@ -39,6 +41,8 @@ pub struct App {
     pub form_data: CardFormData,
     /// Card ID being edited (None for create mode)
     pub editing_card_id: Option<String>,
+    /// Whether a card is selected (first Enter pressed) but not showing details
+    pub card_selected: bool,
 }
 
 impl App {
@@ -51,6 +55,7 @@ impl App {
             board: None,
             selected_column: 0,
             selected_card: None,
+            selected_card_id: None,
             selected_target_column: 0,
             input: String::new(),
             cursor_position: 0,
@@ -59,6 +64,7 @@ impl App {
             form_field: FormField::Title,
             form_data: CardFormData::default(),
             editing_card_id: None,
+            card_selected: false,
         }
     }
 
@@ -98,6 +104,39 @@ impl App {
         None
     }
 
+    fn update_selected_card_id_from_index(&mut self, card_idx: usize) {
+        if let Some(board) = &self.board {
+            if let Some(column) = board.columns.get(self.selected_column) {
+                let cards_in_column: Vec<_> = board
+                    .cards
+                    .iter()
+                    .filter(|c| c.column_id == column.id)
+                    .collect();
+                if let Some(card) = cards_in_column.get(card_idx) {
+                    self.selected_card_id = Some(card.id.clone());
+                }
+            }
+        }
+    }
+
+    pub fn get_selected_card_index(&self) -> Option<usize> {
+        if let (Some(board), Some(card_id)) = (&self.board, &self.selected_card_id) {
+            if let Some(column) = board.columns.get(self.selected_column) {
+                let cards_in_column: Vec<_> = board
+                    .cards
+                    .iter()
+                    .filter(|c| c.column_id == column.id)
+                    .collect();
+                for (i, card) in cards_in_column.iter().enumerate() {
+                    if card.id == *card_id {
+                        return Some(i);
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn get_current_column(&self) -> Option<&str> {
         self.board
             .as_ref()
@@ -109,6 +148,7 @@ impl App {
         if self.selected_column > 0 {
             self.selected_column -= 1;
             self.selected_card = None;
+            self.selected_card_id = None;
             self.focus = Focus::Columns;
         }
     }
@@ -118,15 +158,18 @@ impl App {
             if self.selected_column < board.columns.len().saturating_sub(1) {
                 self.selected_column += 1;
                 self.selected_card = None;
+                self.selected_card_id = None;
                 self.focus = Focus::Columns;
             }
         }
     }
 
     pub fn move_up(&mut self) {
-        if let Some(card_idx) = self.selected_card {
+        if let Some(card_idx) = self.get_selected_card_index() {
             if card_idx > 0 {
-                self.selected_card = Some(card_idx - 1);
+                let new_idx = card_idx - 1;
+                self.selected_card = Some(new_idx);
+                self.update_selected_card_id_from_index(new_idx);
             }
         } else if let Some(board) = &self.board {
             if let Some(column) = board.columns.get(self.selected_column) {
@@ -136,7 +179,9 @@ impl App {
                     .filter(|c| c.column_id == column.id)
                     .count();
                 if card_count > 0 {
-                    self.selected_card = Some(card_count - 1);
+                    let new_idx = card_count - 1;
+                    self.selected_card = Some(new_idx);
+                    self.update_selected_card_id_from_index(new_idx);
                     self.focus = Focus::Cards;
                 }
             }
@@ -151,10 +196,12 @@ impl App {
                     .iter()
                     .filter(|c| c.column_id == column.id)
                     .count();
-                let current_idx = self.selected_card.unwrap_or(0);
+                let current_idx = self.get_selected_card_index().unwrap_or(0);
 
                 if current_idx < card_count.saturating_sub(1) {
-                    self.selected_card = Some(current_idx + 1);
+                    let new_idx = current_idx + 1;
+                    self.selected_card = Some(new_idx);
+                    self.update_selected_card_id_from_index(new_idx);
                     self.focus = Focus::Cards;
                 }
             }
@@ -164,17 +211,24 @@ impl App {
     pub fn enter_cards(&mut self) {
         self.focus = Focus::Cards;
         self.selected_card = Some(0);
+        self.update_selected_card_id_from_index(0);
     }
 
     pub fn enter_card_detail(&mut self) {
-        if self.focus == Focus::Cards && self.selected_card.is_some() {
-            self.state = AppState::CardDetail;
+        if self.focus == Focus::Cards && self.get_selected_card_index().is_some() {
+            if !self.card_selected {
+                self.card_selected = true;
+            } else {
+                self.state = AppState::CardDetail;
+            }
         }
     }
 
     pub fn exit_cards(&mut self) {
         self.focus = Focus::Columns;
         self.selected_card = None;
+        self.selected_card_id = None;
+        self.card_selected = false;
     }
 
     pub fn clear_error(&mut self) {
@@ -306,6 +360,64 @@ impl App {
     pub fn cancel_move_card(&mut self) {
         self.state = AppState::CardDetail;
         self.clear_error();
+    }
+
+    pub fn quick_move_card_left(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.card_selected {
+            if let Some(_board) = &self.board {
+                if self.selected_column > 0 {
+                    let target_column_idx = self.selected_column - 1;
+                    self.move_selected_card_to(target_column_idx)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn quick_move_card_right(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.card_selected {
+            if let Some(_board) = &self.board {
+                if self.selected_column
+                    < self.board.as_ref().unwrap().columns.len().saturating_sub(1)
+                {
+                    let target_column_idx = self.selected_column + 1;
+                    self.move_selected_card_to(target_column_idx)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn move_selected_card_to(
+        &mut self,
+        target_column_idx: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let card_id = self.selected_card_id().ok_or("No card selected")?;
+        let target_column_id = self
+            .board
+            .as_ref()
+            .and_then(|b| b.columns.get(target_column_idx))
+            .map(|c| c.id.clone())
+            .ok_or("Invalid target column")?;
+
+        let card_service = CardService::new();
+        card_service.move_to(&self.board_path, &card_id, &target_column_id)?;
+        self.load_board()?;
+
+        self.selected_column = target_column_idx;
+
+        if let Some(index) = self.get_selected_card_index() {
+            self.selected_card = Some(index);
+        }
+
+        Ok(())
+    }
+
+    pub fn deselect_card(&mut self) {
+        self.card_selected = false;
+        self.selected_card = None;
+        self.selected_card_id = None;
+        self.focus = Focus::Columns;
     }
 
     fn clear_form(&mut self) {
