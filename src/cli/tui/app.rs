@@ -219,9 +219,16 @@ impl App {
             if !self.card_selected {
                 self.card_selected = true;
             } else {
-                self.state = AppState::CardDetail;
+                self.deselect_card();
             }
         }
+    }
+
+    pub fn open_card_detail(&mut self) {
+        if self.focus == Focus::Columns {
+            self.enter_cards();
+        }
+        self.state = AppState::CardDetail;
     }
 
     pub fn exit_cards(&mut self) {

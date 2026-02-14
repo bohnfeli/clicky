@@ -23,13 +23,13 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
     let hints = match app.state {
         AppState::Board => match app.focus {
             Focus::Columns => {
-                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Select | c Create | q Quit | ? Help"
+                "h/l/← → Select column | k/j/↑↓ Navigate | Enter Select | d Details | c Create | q Quit | ? Help"
             }
             Focus::Cards => {
                 if app.card_selected {
-                    "Enter Details | ←/→/h/l Move card | Esc Deselect | q Quit | ? Help"
+                    "Enter Deselect | d Details | ←/→/h/l Move card | Esc Deselect | q Quit | ? Help"
                 } else {
-                    "Enter Select card | Esc Deselect | q Quit | ? Help"
+                    "Enter Select card | d Details | Esc Deselect | q Quit | ? Help"
                 }
             }
             _ => "? Help",
@@ -68,7 +68,8 @@ fn draw_help_overlay(frame: &mut Frame) {
         Line::from("   k/↑   Previous card"),
         Line::from("   j/↓   Next card"),
         Line::from("   Enter Select card (first press)"),
-        Line::from("   Enter Show details (second press)"),
+        Line::from("   Enter Deselect card (when selected)"),
+        Line::from("   d     Show card details"),
         Line::from("   ←/→   Move selected card between columns"),
         Line::from("   Esc   Deselect card / Exit selection"),
         Line::from("   c     Create new card"),
@@ -201,37 +202,52 @@ fn draw_column(frame: &mut Frame, area: Rect, app: &App, column_id: &str, index:
 
     let is_focused = app.selected_column == index;
 
-    // Create list items for cards
-    let items: Vec<ListItem> = cards
-        .iter()
-        .enumerate()
-        .map(|(i, card)| {
-            let assignee = card
-                .assignee
-                .as_ref()
-                .map(|a| format!(" [@{}]", a))
-                .unwrap_or_default();
+    let mut items: Vec<ListItem> = Vec::new();
 
-            let is_selected =
-                app.get_selected_card_index() == Some(i) && is_focused && app.focus == Focus::Cards;
+    for (i, card) in cards.iter().enumerate() {
+        let is_selected = app.get_selected_card_index() == Some(i)
+            && is_focused
+            && app.focus == Focus::Cards
+            && app.card_selected;
 
-            let style = if is_selected {
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
+        let style = if is_selected {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
 
-            let title = if card.title.len() > 25 {
-                format!("{}...{}", &card.title[..25], assignee)
-            } else {
-                format!("{}{}", card.title, assignee)
-            };
+        let assignee_short = card
+            .assignee
+            .as_ref()
+            .map(|a| format!(" [@{}]", a))
+            .unwrap_or_default();
 
-            ListItem::new(Span::styled(title, style))
-        })
-        .collect();
+        let title = if card.title.len() > 25 {
+            format!("{}...{}", &card.title[..25], assignee_short)
+        } else {
+            format!("{}{}", card.title, assignee_short)
+        };
+
+        items.push(ListItem::new(Span::styled(title, style)));
+
+        if is_selected {
+            if let Some(desc) = &card.description {
+                items.push(ListItem::new(Span::styled(
+                    format!("  Description: {}", desc),
+                    style,
+                )));
+            }
+
+            if let Some(assignee) = &card.assignee {
+                items.push(ListItem::new(Span::styled(
+                    format!("  Assignee: @{}", assignee),
+                    style,
+                )));
+            }
+        }
+    }
 
     // Column block
     let block = Block::default()
