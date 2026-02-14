@@ -1,5 +1,9 @@
 //! Event handling for TUI.
 
+#[cfg(test)]
+#[path = "./events_tests.rs"]
+mod events_tests;
+
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
@@ -14,11 +18,13 @@ pub struct EventHandler {
     #[allow(dead_code)]
     sender: Sender<Event>,
     receiver: Receiver<Event>,
+    shutdown: Sender<()>,
     handler: Option<thread::JoinHandle<()>>,
 }
 
 impl EventHandler {
     pub fn new() -> Self {
+        let (shutdown_tx, shutdown_rx) = mpsc::channel();
         let (sender, receiver) = mpsc::channel();
 
         let sender_clone = sender.clone();
@@ -27,6 +33,10 @@ impl EventHandler {
             let mut last_tick = Instant::now();
 
             loop {
+                if shutdown_rx.try_recv().is_ok() {
+                    break;
+                }
+
                 let timeout = tick_rate
                     .checked_sub(last_tick.elapsed())
                     .unwrap_or_else(|| Duration::from_secs(0));
@@ -55,6 +65,7 @@ impl EventHandler {
         Self {
             sender,
             receiver,
+            shutdown: shutdown_tx,
             handler: Some(handler),
         }
     }
@@ -78,6 +89,7 @@ impl EventHandler {
     }
 
     pub fn stop(mut self) {
+        let _ = self.shutdown.send(());
         if let Some(handler) = self.handler.take() {
             let _ = handler.join();
         }
