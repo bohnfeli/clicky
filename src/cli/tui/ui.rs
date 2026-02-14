@@ -210,10 +210,15 @@ fn draw_column(frame: &mut Frame, area: Rect, app: &App, column_id: &str, index:
             && app.focus == Focus::Cards
             && app.card_selected;
 
+        let is_pre_selected =
+            app.pre_selected_card == Some(i) && is_focused && app.focus == Focus::Columns;
+
         let style = if is_selected {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
+        } else if is_pre_selected {
+            Style::default().fg(Color::Cyan)
         } else {
             Style::default()
         };
