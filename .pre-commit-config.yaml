@@ -1,0 +1,58 @@
+# Pre-commit hooks configuration for Clicky project
+# Install with: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Rust formatting
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt
+        args: ['--', '--check']
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+  # Rust linting with clippy
+  - repo: local
+    hooks:
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy
+        args: ['--all-features', '--', '-D', 'warnings']
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+  # Check if Cargo.toml is properly formatted
+  - repo: local
+    hooks:
+      - id: cargo-toml-fmt
+        name: cargo-toml fmt
+        entry: cargo-toml-fmt
+        args: ['--check', 'Cargo.toml']
+        language: system
+        files: ^Cargo\.toml$
+        pass_filenames: false
+
+  # Check for trailing whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^\.git/
+      - id: end-of-file-fixer
+        exclude: ^\.git/
+      - id: check-yaml
+        files: ^\.github/.*\.ya?ml$
+      - id: check-toml
+        files: ^.*\.toml$
+
+  # Check for large files
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+        exclude: ^(target/|\.git/)
