@@ -1,5 +1,6 @@
 use super::*;
 use crate::application::BoardService;
+use crate::cli::tui::handle_create_card_input;
 use tempfile::TempDir;
 
 #[test]
@@ -37,6 +38,98 @@ fn test_form_field_input() {
     app.next_form_field();
     *app.get_current_field_input_mut() = "Test Assignee".to_string();
     assert_eq!(app.form_data.assignee, "Test Assignee");
+}
+
+#[test]
+fn test_auto_enter_edit_mode_when_typing() {
+    use crate::cli::tui::state::InputMode;
+    use crossterm::event::{KeyCode, KeyEvent};
+
+    let mut app = App::default();
+    app.start_create_card();
+
+    assert_eq!(app.input_mode, InputMode::Normal);
+    assert_eq!(app.state, AppState::CreateCard);
+
+    let key = KeyEvent::new(KeyCode::Char('T'), crossterm::event::KeyModifiers::empty());
+    handle_create_card_input(&mut app, &key);
+
+    assert_eq!(app.input_mode, InputMode::Editing);
+    assert_eq!(app.form_data.title, "T");
+
+    let key2 = KeyEvent::new(KeyCode::Char('e'), crossterm::event::KeyModifiers::empty());
+    handle_create_card_input(&mut app, &key2);
+
+    assert_eq!(app.input_mode, InputMode::Editing);
+    assert_eq!(app.form_data.title, "Te");
+}
+
+#[test]
+fn test_create_card_full_workflow_with_typing() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let temp_dir = TempDir::new().unwrap();
+    let board_service = BoardService::new();
+    board_service
+        .initialize(temp_dir.path(), Some("Test".to_string()))
+        .unwrap();
+
+    let mut app = App::new(temp_dir.path().to_path_buf());
+    app.load_board().unwrap();
+    app.start_create_card();
+
+    assert_eq!(app.state, AppState::CreateCard);
+
+    let modifiers = KeyModifiers::empty();
+
+    let key_t = KeyEvent::new(KeyCode::Char('T'), modifiers);
+    let key_e = KeyEvent::new(KeyCode::Char('e'), modifiers);
+    let key_s = KeyEvent::new(KeyCode::Char('s'), modifiers);
+    let key_t2 = KeyEvent::new(KeyCode::Char('t'), modifiers);
+    let enter = KeyEvent::new(KeyCode::Enter, modifiers);
+
+    handle_create_card_input(&mut app, &key_t);
+    handle_create_card_input(&mut app, &key_e);
+    handle_create_card_input(&mut app, &key_s);
+    handle_create_card_input(&mut app, &key_t2);
+
+    assert_eq!(app.form_data.title, "Test");
+
+    handle_create_card_input(&mut app, &enter);
+
+    assert_eq!(app.form_field, FormField::Description);
+    assert_eq!(app.input_mode, InputMode::Normal);
+
+    handle_create_card_input(&mut app, &key_t);
+    handle_create_card_input(&mut app, &key_e);
+    handle_create_card_input(&mut app, &key_s);
+    handle_create_card_input(&mut app, &key_t2);
+
+    assert_eq!(app.form_data.description, "Test");
+
+    handle_create_card_input(&mut app, &enter);
+
+    assert_eq!(app.form_field, FormField::Assignee);
+    assert_eq!(app.input_mode, InputMode::Normal);
+
+    handle_create_card_input(&mut app, &key_t);
+    handle_create_card_input(&mut app, &key_e);
+    handle_create_card_input(&mut app, &key_s);
+    handle_create_card_input(&mut app, &key_t2);
+
+    assert_eq!(app.form_data.assignee, "Test");
+
+    handle_create_card_input(&mut app, &enter);
+
+    assert_eq!(app.form_field, FormField::Title);
+    assert_eq!(app.input_mode, InputMode::Normal);
+
+    app.submit_card().unwrap();
+
+    assert_eq!(app.state, AppState::Board);
+    assert!(app.board.is_some());
+    assert_eq!(app.board.as_ref().unwrap().cards.len(), 1);
+    assert_eq!(app.board.as_ref().unwrap().cards[0].title, "Test");
 }
 
 #[test]
