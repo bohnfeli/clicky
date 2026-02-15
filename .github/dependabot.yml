@@ -1,0 +1,26 @@
+name: Dependabot
+
+version: 2
+updates:
+  # Update cargo dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "bohnfeli"
+    labels:
+      - "dependencies"
+      - "dependabot"
+    ignore:
+      # Ignore major version updates for stability
+      - dependency-name: "ratatui"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "crossterm"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"

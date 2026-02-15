@@ -1,4 +1,4 @@
-.PHONY: help build test lint fmt check clean docs install audit release
+.PHONY: help build test lint fmt check clean docs install audit release pre-commit
 
 help:
 	@echo "Available commands:"
@@ -6,7 +6,9 @@ help:
 	@echo "  make test        - Run tests"
 	@echo "  make lint        - Run clippy linter"
 	@echo "  make fmt         - Format code"
+	@echo "  make fmt-fix     - Fix code formatting"
 	@echo "  make check       - Run all quality gates"
+	@echo "  make pre-commit  - Run pre-commit hooks"
 	@echo "  make clean       - Clean build artifacts"
 	@echo "  make docs        - Build documentation"
 	@echo "  make install     - Install required tools"
@@ -30,6 +32,10 @@ fmt-fix:
 
 check: build test lint fmt audit docs
 	@echo "All quality gates passed!"
+
+pre-commit:
+	@command -v pre-commit >/dev/null 2>&1 || { echo "pre-commit not installed. Install with: pip install pre-commit"; exit 1; }
+	pre-commit run --all-files
 
 clean:
 	cargo clean
