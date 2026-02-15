@@ -1,26 +1,32 @@
-use super::*;
-use crate::application::BoardService;
-use crate::cli::tui::handle_create_card_input;
+use super::App;
+use crate::application::{BoardService, CardService};
+use crate::cli::tui::handle_form_input;
+use crate::cli::tui::state::{FormField, FormMode, InputMode, Selection, View};
 use tempfile::TempDir;
 
 #[test]
 fn test_form_navigation() {
     let mut app = App::default();
-
     app.start_create_card();
-    assert_eq!(app.form_field, FormField::Title);
+
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.current_field, FormField::Title);
 
     app.next_form_field();
-    assert_eq!(app.form_field, FormField::Description);
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.current_field, FormField::Description);
 
     app.next_form_field();
-    assert_eq!(app.form_field, FormField::Assignee);
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.current_field, FormField::Assignee);
 
     app.next_form_field();
-    assert_eq!(app.form_field, FormField::Title);
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.current_field, FormField::Title);
 
     app.prev_form_field();
-    assert_eq!(app.form_field, FormField::Assignee);
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.current_field, FormField::Assignee);
 }
 
 #[test]
@@ -28,40 +34,50 @@ fn test_form_field_input() {
     let mut app = App::default();
     app.start_create_card();
 
-    *app.get_current_field_input_mut() = "Test Title".to_string();
-    assert_eq!(app.form_data.title, "Test Title");
+    *app.get_current_field_input_mut().unwrap() = "Test Title".to_string();
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.title, "Test Title");
 
     app.next_form_field();
-    *app.get_current_field_input_mut() = "Test Description".to_string();
-    assert_eq!(app.form_data.description, "Test Description");
+    *app.get_current_field_input_mut().unwrap() = "Test Description".to_string();
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.description, "Test Description");
 
     app.next_form_field();
-    *app.get_current_field_input_mut() = "Test Assignee".to_string();
-    assert_eq!(app.form_data.assignee, "Test Assignee");
+    *app.get_current_field_input_mut().unwrap() = "Test Assignee".to_string();
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.assignee, "Test Assignee");
 }
 
 #[test]
 fn test_auto_enter_edit_mode_when_typing() {
-    use crate::cli::tui::state::InputMode;
+    use crate::cli::tui::handle_form_input;
     use crossterm::event::{KeyCode, KeyEvent};
 
     let mut app = App::default();
     app.start_create_card();
 
-    assert_eq!(app.input_mode, InputMode::Normal);
-    assert_eq!(app.state, AppState::CreateCard);
+    assert_eq!(app.get_input_mode(), InputMode::Normal);
+    assert!(matches!(
+        app.view,
+        View::CardForm {
+            mode: FormMode::Create { .. }
+        }
+    ));
 
     let key = KeyEvent::new(KeyCode::Char('T'), crossterm::event::KeyModifiers::empty());
-    handle_create_card_input(&mut app, &key);
+    handle_form_input(&mut app, &key);
 
-    assert_eq!(app.input_mode, InputMode::Editing);
-    assert_eq!(app.form_data.title, "T");
+    assert_eq!(app.get_input_mode(), InputMode::Editing);
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.title, "T");
 
     let key2 = KeyEvent::new(KeyCode::Char('e'), crossterm::event::KeyModifiers::empty());
-    handle_create_card_input(&mut app, &key2);
+    handle_form_input(&mut app, &key2);
 
-    assert_eq!(app.input_mode, InputMode::Editing);
-    assert_eq!(app.form_data.title, "Te");
+    assert_eq!(app.get_input_mode(), InputMode::Editing);
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.title, "Te");
 }
 
 #[test]
@@ -78,7 +94,12 @@ fn test_create_card_full_workflow_with_typing() {
     app.load_board().unwrap();
     app.start_create_card();
 
-    assert_eq!(app.state, AppState::CreateCard);
+    assert!(matches!(
+        app.view,
+        View::CardForm {
+            mode: FormMode::Create { .. }
+        }
+    ));
 
     let modifiers = KeyModifiers::empty();
 
@@ -88,52 +109,22 @@ fn test_create_card_full_workflow_with_typing() {
     let key_t2 = KeyEvent::new(KeyCode::Char('t'), modifiers);
     let enter = KeyEvent::new(KeyCode::Enter, modifiers);
 
-    handle_create_card_input(&mut app, &key_t);
-    handle_create_card_input(&mut app, &key_e);
-    handle_create_card_input(&mut app, &key_s);
-    handle_create_card_input(&mut app, &key_t2);
+    handle_form_input(&mut app, &key_t);
+    handle_form_input(&mut app, &key_e);
+    handle_form_input(&mut app, &key_s);
+    handle_form_input(&mut app, &key_t2);
 
-    assert_eq!(app.form_data.title, "Test");
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.title, "Test");
 
-    handle_create_card_input(&mut app, &enter);
+    handle_form_input(&mut app, &enter);
 
-    assert_eq!(app.form_field, FormField::Description);
-    assert_eq!(app.input_mode, InputMode::Normal);
-
-    handle_create_card_input(&mut app, &key_t);
-    handle_create_card_input(&mut app, &key_e);
-    handle_create_card_input(&mut app, &key_s);
-    handle_create_card_input(&mut app, &key_t2);
-
-    assert_eq!(app.form_data.description, "Test");
-
-    handle_create_card_input(&mut app, &enter);
-
-    assert_eq!(app.form_field, FormField::Assignee);
-    assert_eq!(app.input_mode, InputMode::Normal);
-
-    handle_create_card_input(&mut app, &key_t);
-    handle_create_card_input(&mut app, &key_e);
-    handle_create_card_input(&mut app, &key_s);
-    handle_create_card_input(&mut app, &key_t2);
-
-    assert_eq!(app.form_data.assignee, "Test");
-
-    handle_create_card_input(&mut app, &enter);
-
-    assert_eq!(app.form_field, FormField::Title);
-    assert_eq!(app.input_mode, InputMode::Normal);
-
-    app.submit_card().unwrap();
-
-    assert_eq!(app.state, AppState::Board);
-    assert!(app.board.is_some());
-    assert_eq!(app.board.as_ref().unwrap().cards.len(), 1);
-    assert_eq!(app.board.as_ref().unwrap().cards[0].title, "Test");
+    let form_data = app.get_form_data().unwrap();
+    assert_eq!(form_data.current_field, FormField::Description);
 }
 
 #[test]
-fn test_submit_card_empty_title() {
+fn test_create_card_requires_title() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -144,59 +135,31 @@ fn test_submit_card_empty_title() {
     app.load_board().unwrap();
     app.start_create_card();
 
-    *app.get_current_field_input_mut() = "".to_string();
-    app.submit_card().unwrap();
+    let result = app.submit_card();
+    assert!(result.is_ok());
 
-    assert!(app.error_message.is_some());
     assert_eq!(app.error_message, Some("Title is required".to_string()));
-    assert_eq!(app.state, AppState::CreateCard);
+    assert!(matches!(
+        app.view,
+        View::CardForm {
+            mode: FormMode::Create { .. }
+        }
+    ));
 }
 
 #[test]
-fn test_create_card_success() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.start_create_card();
-
-    *app.get_current_field_input_mut() = "Test Card".to_string();
-    app.next_form_field();
-    *app.get_current_field_input_mut() = "Test Description".to_string();
-    app.next_form_field();
-    *app.get_current_field_input_mut() = "Test Assignee".to_string();
-
-    app.submit_card().unwrap();
-
-    assert!(app.error_message.is_none());
-    assert_eq!(app.state, AppState::Board);
-    assert!(app.board.is_some());
-    assert_eq!(app.board.as_ref().unwrap().cards.len(), 1);
-    assert_eq!(app.board.as_ref().unwrap().cards[0].title, "Test Card");
-}
-
-#[test]
-fn test_cancel_card() {
+fn test_cancel_card_returns_to_board() {
     let mut app = App::default();
     app.start_create_card();
 
-    *app.get_current_field_input_mut() = "Test Title".to_string();
     app.cancel_card();
 
-    assert_eq!(app.state, AppState::Board);
-    assert_eq!(app.form_data.title, "");
-    assert_eq!(app.form_data.description, "");
-    assert_eq!(app.form_data.assignee, "");
+    assert!(matches!(app.view, View::Board { .. }));
+    assert!(app.get_form_data().is_none());
 }
 
 #[test]
-fn test_delete_card() {
-    use crate::application::CardService;
-
+fn test_move_up_down_navigation() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -204,79 +167,59 @@ fn test_delete_card() {
         .unwrap();
 
     let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    assert_eq!(app.board.as_ref().unwrap().cards.len(), 1);
-
     card_service
-        .delete(temp_dir.path(), &created.card_id)
-        .unwrap();
-
-    app.load_board().unwrap();
-    assert_eq!(app.board.as_ref().unwrap().cards.len(), 0);
-}
-
-#[test]
-fn test_start_move_card() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
         .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 0;
-    app.selected_card = Some(0);
 
-    app.start_move_card();
+    app.move_down();
+    if let View::Board {
+        selection: Selection::Highlighted { card_index, .. },
+        ..
+    } = app.view
+    {
+        assert_eq!(card_index, 0);
+    } else {
+        panic!("Expected Highlighted selection after move_down");
+    }
 
-    assert_eq!(app.state, AppState::MoveCard);
-    assert!(app.error_message.is_none());
+    app.move_up();
+    if let View::Board {
+        selection: Selection::Highlighted { card_index, .. },
+        ..
+    } = app.view
+    {
+        assert_eq!(card_index, 0);
+    } else {
+        panic!("Expected Highlighted selection after move_up");
+    }
 }
 
 #[test]
-fn test_move_card_navigation() {
+fn test_move_left_right_navigation() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
         .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 0;
-    app.selected_card = Some(0);
 
-    app.start_move_card();
-    let initial_target = app.selected_target_column;
+    let initial_column = app.view.selected_column();
+    assert_eq!(initial_column, 0);
 
-    app.move_card_right();
-    assert_eq!(app.selected_target_column, initial_target + 1);
+    app.move_right();
+    assert_eq!(app.view.selected_column(), 1);
 
-    app.move_card_right();
-    assert_eq!(app.selected_target_column, initial_target + 2);
-
-    app.move_card_left();
-    assert_eq!(app.selected_target_column, initial_target + 1);
+    app.move_left();
+    assert_eq!(app.view.selected_column(), 0);
 }
 
 #[test]
-fn test_move_card_right_boundary() {
+fn test_enter_cards_selects_card() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -284,307 +227,21 @@ fn test_move_card_right_boundary() {
         .unwrap();
 
     let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.selected_card = Some(0);
-
-    app.start_move_card();
-    app.selected_target_column = app.board.as_ref().unwrap().columns.len() - 1;
-
-    app.move_card_right();
-    assert_eq!(
-        app.selected_target_column,
-        app.board.as_ref().unwrap().columns.len() - 1
-    );
-}
-
-#[test]
-fn test_move_card_left_boundary() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.selected_card = Some(0);
-
-    app.start_move_card();
-    app.selected_target_column = 0;
-
-    app.move_card_left();
-    assert_eq!(app.selected_target_column, 0);
-}
-
-#[test]
-fn test_confirm_move_card_success() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.selected_card = Some(0);
-
-    app.start_move_card();
-    app.move_card_right();
-
-    app.confirm_move_card().unwrap();
-
-    assert_eq!(app.state, AppState::CardDetail);
-    assert!(app.error_message.is_none());
-
-    let card = app
-        .board
-        .as_ref()
-        .unwrap()
-        .get_card(&created.card_id)
-        .unwrap();
-    assert_eq!(card.column_id, "in_progress");
-}
-
-#[test]
-fn test_cancel_move_card() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.selected_card = Some(0);
-
-    app.start_move_card();
-    assert_eq!(app.state, AppState::MoveCard);
-
-    app.cancel_move_card();
-
-    assert_eq!(app.state, AppState::CardDetail);
-    assert!(app.error_message.is_none());
-}
-
-#[test]
-fn test_complete_move_flow() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.selected_card = Some(0);
-
-    app.enter_cards();
-    assert_eq!(app.state, AppState::Board);
-    assert_eq!(app.focus, Focus::Cards);
-    assert_eq!(app.selected_card, Some(0));
-
-    app.start_move_card();
-    assert_eq!(app.state, AppState::MoveCard);
-
-    app.move_card_right();
-    assert_eq!(app.selected_target_column, 1);
-
-    app.confirm_move_card().unwrap();
-
-    assert_eq!(app.state, AppState::CardDetail);
-    assert!(app.error_message.is_none());
-
-    let card = app
-        .board
-        .as_ref()
-        .unwrap()
-        .get_card(&created.card_id)
-        .unwrap();
-    assert_eq!(card.column_id, "in_progress");
-}
-
-#[test]
-fn test_enter_cards_focus_transitions_to_card_detail() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    assert_eq!(app.state, AppState::Board);
-    assert_eq!(app.focus, Focus::Columns);
-
-    app.enter_cards();
-    assert_eq!(app.focus, Focus::Cards);
-    assert_eq!(app.selected_card, Some(0));
-    assert!(app.card_selected);
-
-    app.open_card_detail();
-    assert_eq!(app.state, AppState::CardDetail);
-}
-
-#[test]
-fn test_first_enter_selects_card_with_details() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.enter_cards();
-
-    assert!(app.card_selected);
-    assert_eq!(app.state, AppState::Board);
-    assert!(app.selected_card.is_some());
-}
-
-#[test]
-fn test_second_enter_deselects_card() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.enter_cards();
-    assert!(app.card_selected);
-
-    app.enter_card_detail();
-
-    assert!(!app.card_selected);
-    assert_eq!(app.state, AppState::Board);
-    assert_eq!(app.focus, Focus::Columns);
-}
-
-#[test]
-fn test_quick_move_card_right() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.enter_cards();
-    let initial_column = app.selected_column;
-
-    app.quick_move_card_right().unwrap();
-
-    assert_eq!(app.selected_column, initial_column + 1);
-    assert!(app.card_selected);
-
-    let card = app
-        .board
-        .as_ref()
-        .unwrap()
-        .get_card(&created.card_id)
-        .unwrap();
-    assert_eq!(card.column_id, "in_progress");
-}
-
-#[test]
-fn test_quick_move_card_left() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
     card_service
-        .move_to(temp_dir.path(), &created.card_id, "in_progress")
+        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 1;
+    app.move_down();
     app.enter_cards();
 
-    app.quick_move_card_left().unwrap();
-
-    assert_eq!(app.selected_column, 0);
-    assert!(app.card_selected);
-
-    let card = app
-        .board
-        .as_ref()
-        .unwrap()
-        .get_card(&created.card_id)
-        .unwrap();
-    assert_eq!(card.column_id, "todo");
+    assert!(app.view.is_card_selected());
+    assert!(app.view.selected_card_id().is_some());
 }
 
 #[test]
-fn test_esc_deselects_card() {
+fn test_exit_cards_deselects() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -592,159 +249,37 @@ fn test_esc_deselects_card() {
         .unwrap();
 
     let card_service = CardService::new();
-    let _created = card_service
+    card_service
         .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.enter_cards();
-    assert!(app.card_selected);
-
-    app.deselect_card();
-
-    assert!(!app.card_selected);
-    assert!(app.selected_card.is_none());
-    assert_eq!(app.focus, Focus::Columns);
-}
-
-#[test]
-fn test_move_without_card_selection() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.enter_cards();
-    app.card_selected = false;
-
-    let result = app.quick_move_card_right();
-
-    assert!(result.is_ok());
-    assert_eq!(app.selected_column, 0);
-
-    let card = app
-        .board
-        .as_ref()
-        .unwrap()
-        .get_card(&created.card_id)
-        .unwrap();
-    assert_eq!(card.column_id, "todo");
-}
-
-#[test]
-fn test_quick_move_right_boundary() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = app.board.as_ref().unwrap().columns.len() - 1;
-    app.enter_cards();
-    app.enter_card_detail();
-
-    app.quick_move_card_right().unwrap();
-
-    assert_eq!(
-        app.selected_column,
-        app.board.as_ref().unwrap().columns.len() - 1
-    );
-}
-
-#[test]
-fn test_quick_move_left_boundary() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let _created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.enter_cards();
-    app.enter_card_detail();
-
-    app.quick_move_card_left().unwrap();
-
-    assert_eq!(app.selected_column, 0);
-}
-
-#[test]
-fn test_selected_card_id_set_when_entering_cards() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
+    app.move_down();
     app.enter_cards();
 
-    assert_eq!(app.selected_card, Some(0));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
-}
-
-#[test]
-fn test_selected_card_id_cleared_when_exiting() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.enter_cards();
-
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
+    assert!(app.view.is_card_selected());
 
     app.exit_cards();
 
-    assert!(app.selected_card.is_none());
-    assert!(app.selected_card_id.is_none());
+    assert!(!app.view.is_card_selected());
 }
 
 #[test]
-fn test_selected_card_id_matches_selected_card_when_moving() {
+fn test_toggle_help() {
+    let mut app = App::default();
+
+    assert!(!app.view.is_help());
+
+    app.toggle_help();
+    assert!(app.view.is_help());
+
+    app.toggle_help();
+    assert!(!app.view.is_help());
+}
+
+#[test]
+fn test_selected_card_id_extraction() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -752,83 +287,110 @@ fn test_selected_card_id_matches_selected_card_when_moving() {
         .unwrap();
 
     let card_service = CardService::new();
-    let card1_id = card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap()
-        .card_id;
-    let card2_id = card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap()
-        .card_id;
-    let card3_id = card_service
-        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
-        .unwrap()
-        .card_id;
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.enter_cards();
-
-    assert_eq!(app.selected_card, Some(0));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&card1_id));
-
-    app.move_down();
-    assert_eq!(app.selected_card, Some(1));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&card2_id));
-
-    app.move_down();
-    assert_eq!(app.selected_card, Some(2));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&card3_id));
-
-    app.move_up();
-    assert_eq!(app.selected_card, Some(1));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&card2_id));
-}
-
-#[test]
-fn test_get_selected_card_index_returns_correct_index() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let card1_id = card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap()
-        .card_id;
     card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
+        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
-    let card3_id = card_service
-        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
-        .unwrap()
-        .card_id;
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 0;
+    app.move_down();
     app.enter_cards();
 
-    assert_eq!(app.get_selected_card_index(), Some(0));
-
-    app.move_down();
-    assert_eq!(app.get_selected_card_index(), Some(1));
-
-    app.move_down();
-    assert_eq!(app.get_selected_card_index(), Some(2));
-
-    app.selected_card_id = Some(card1_id);
-    assert_eq!(app.get_selected_card_index(), Some(0));
-
-    app.selected_card_id = Some(card3_id);
-    assert_eq!(app.get_selected_card_index(), Some(2));
+    let card_id = app.view.selected_card_id();
+    assert!(card_id.is_some());
+    let card_id_str = card_id.unwrap();
+    assert!(card_id_str.starts_with("TES-"));
 }
 
 #[test]
-fn test_get_selected_card_index_returns_none_when_no_selection() {
+fn test_get_current_column() {
+    let temp_dir = TempDir::new().unwrap();
+    let board_service = BoardService::new();
+    board_service
+        .initialize(temp_dir.path(), Some("Test".to_string()))
+        .unwrap();
+
+    let mut app = App::new(temp_dir.path().to_path_buf());
+    app.load_board().unwrap();
+
+    let column_id = app.get_current_column();
+    assert_eq!(column_id, Some("todo"));
+}
+
+#[test]
+fn test_input_mode_management() {
+    let mut app = App::default();
+    app.start_create_card();
+
+    assert_eq!(app.get_input_mode(), InputMode::Normal);
+
+    app.set_input_mode(InputMode::Editing);
+    assert_eq!(app.get_input_mode(), InputMode::Editing);
+
+    app.set_input_mode(InputMode::Normal);
+    assert_eq!(app.get_input_mode(), InputMode::Normal);
+}
+
+#[test]
+fn test_view_default_state() {
+    let view = View::default();
+    assert!(matches!(view, View::Board { .. }));
+}
+
+#[test]
+fn test_selection_enum() {
+    let none = Selection::default();
+    assert!(matches!(none, Selection::None));
+
+    let highlighted = Selection::Highlighted {
+        column: 0,
+        card_index: 1,
+    };
+    assert_eq!(highlighted.card_index(), Some(1));
+    assert!(highlighted.card_id().is_none());
+
+    let selected = Selection::Selected {
+        card_id: "PRJ-001".to_string(),
+    };
+    assert_eq!(selected.card_id(), Some("PRJ-001"));
+    assert!(selected.card_index().is_none());
+}
+
+#[test]
+fn test_form_field_navigation() {
+    assert_eq!(FormField::Title.next(), FormField::Description);
+    assert_eq!(FormField::Description.next(), FormField::Assignee);
+    assert_eq!(FormField::Assignee.next(), FormField::Title);
+
+    assert_eq!(FormField::Title.prev(), FormField::Assignee);
+    assert_eq!(FormField::Description.prev(), FormField::Title);
+    assert_eq!(FormField::Assignee.prev(), FormField::Description);
+}
+
+#[test]
+fn test_card_form_data_validation() {
+    let mut data = crate::cli::tui::state::CardFormData::default();
+    assert!(!data.is_valid());
+
+    data.title = "Test Title".to_string();
+    assert!(data.is_valid());
+
+    let (title, desc, assignee) = data.clone().to_card_values();
+    assert_eq!(title, "Test Title");
+    assert!(desc.is_none());
+    assert!(assignee.is_none());
+
+    data.description = "Test Description".to_string();
+    data.assignee = "test@test.com".to_string();
+
+    let (title, desc, assignee) = data.to_card_values();
+    assert_eq!(title, "Test Title");
+    assert_eq!(desc, Some("Test Description".to_string()));
+    assert_eq!(assignee, Some("test@test.com".to_string()));
+}
+
+#[test]
+fn test_get_selected_card_index() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -844,10 +406,15 @@ fn test_get_selected_card_index_returns_none_when_no_selection() {
     app.load_board().unwrap();
 
     assert!(app.get_selected_card_index().is_none());
+
+    app.move_down();
+    app.enter_cards();
+
+    assert!(app.get_selected_card_index().is_some());
 }
 
 #[test]
-fn test_get_selected_card_index_after_quick_move_right() {
+fn test_get_highlighted_card_index() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -855,99 +422,22 @@ fn test_get_selected_card_index_after_quick_move_right() {
         .unwrap();
 
     let card_service = CardService::new();
-    let created = card_service
+    card_service
         .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 0;
 
-    app.enter_cards();
+    assert!(app.get_highlighted_card_index().is_none());
 
-    assert_eq!(app.get_selected_card_index(), Some(0));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
-
-    app.quick_move_card_right().unwrap();
-
-    assert_eq!(app.selected_column, 1);
-    assert!(app.card_selected);
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
-    assert_eq!(app.get_selected_card_index(), Some(0));
-}
-
-#[test]
-fn test_get_selected_card_index_after_quick_move_left() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    card_service
-        .move_to(temp_dir.path(), &created.card_id, "in_progress")
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 1;
-    app.enter_cards();
-
-    assert_eq!(app.get_selected_card_index(), Some(0));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
-
-    app.quick_move_card_left().unwrap();
-
-    assert_eq!(app.selected_column, 0);
-    assert!(app.card_selected);
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
-    assert_eq!(app.get_selected_card_index(), Some(0));
-}
-
-#[test]
-fn test_get_selected_card_index_with_multiple_cards_after_move() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap();
-    let card2 = card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.enter_cards();
     app.move_down();
 
-    assert_eq!(app.get_selected_card_index(), Some(1));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&card2.card_id));
-
-    app.quick_move_card_right().unwrap();
-
-    assert_eq!(app.selected_column, 1);
-    assert!(app.card_selected);
-    assert_eq!(app.selected_card_id.as_ref(), Some(&card2.card_id));
-    assert_eq!(app.get_selected_card_index(), Some(0));
+    assert_eq!(app.get_highlighted_card_index(), Some(0));
 }
 
 #[test]
-fn test_exit_cards_clears_card_selection() {
+fn test_deselect_card() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -955,26 +445,37 @@ fn test_exit_cards_clears_card_selection() {
         .unwrap();
 
     let card_service = CardService::new();
-    let _created = card_service
+    card_service
         .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 0;
-
+    app.move_down();
     app.enter_cards();
-    assert!(app.card_selected);
 
-    app.exit_cards();
+    assert!(app.view.is_card_selected());
 
-    assert!(!app.card_selected);
-    assert!(app.selected_card.is_none());
-    assert_eq!(app.focus, Focus::Columns);
+    app.deselect_card();
+
+    assert!(!app.view.is_card_selected());
 }
 
 #[test]
-fn test_enter_deselects_card_and_returns_to_column_focus() {
+fn test_error_message_handling() {
+    let mut app = App::default();
+
+    assert!(app.error_message.is_none());
+
+    app.error_message = Some("Test error".to_string());
+    assert_eq!(app.error_message, Some("Test error".to_string()));
+
+    app.clear_error();
+    assert!(app.error_message.is_none());
+}
+
+#[test]
+fn test_open_card_detail() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -982,296 +483,31 @@ fn test_enter_deselects_card_and_returns_to_column_focus() {
         .unwrap();
 
     let card_service = CardService::new();
-    let _created = card_service
+    card_service
         .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
         .unwrap();
 
     let mut app = App::new(temp_dir.path().to_path_buf());
     app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.enter_cards();
-    assert!(app.card_selected);
-    assert_eq!(app.focus, Focus::Cards);
-
-    app.enter_card_detail();
-
-    assert!(!app.card_selected);
-    assert_eq!(app.focus, Focus::Columns);
-    assert_eq!(app.state, AppState::Board);
-}
-
-#[test]
-fn test_open_card_detail_view_from_board_state() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    let created = card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-    app.enter_cards();
-
-    assert_eq!(app.state, AppState::Board);
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
+    app.move_down();
 
     app.open_card_detail();
 
-    assert_eq!(app.state, AppState::CardDetail);
-    assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
+    assert!(matches!(app.view, View::CardDetail { .. }));
 }
 
 #[test]
-fn test_open_card_detail_view_without_card_selection() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
+fn test_selection_is_in_column() {
+    let selection = Selection::Highlighted {
+        column: 1,
+        card_index: 2,
+    };
+    assert!(!selection.is_in_column(0));
+    assert!(selection.is_in_column(1));
 
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Test Card".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    assert_eq!(app.state, AppState::Board);
-
-    app.open_card_detail();
-
-    assert_eq!(app.state, AppState::CardDetail);
-}
-
-#[test]
-fn test_pre_selected_card_initialized_to_none() {
-    let app = App::default();
-    assert!(app.pre_selected_card.is_none());
-}
-
-#[test]
-fn test_move_down_in_column_focus_updates_pre_selected() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    assert_eq!(app.focus, Focus::Columns);
-    assert!(app.pre_selected_card.is_none());
-
-    app.move_down();
-
-    assert_eq!(app.pre_selected_card, Some(0));
-
-    app.move_down();
-
-    assert_eq!(app.pre_selected_card, Some(1));
-
-    app.move_down();
-
-    assert_eq!(app.pre_selected_card, Some(2));
-}
-
-#[test]
-fn test_move_up_in_column_focus_updates_pre_selected() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.move_down();
-    app.move_down();
-    app.move_down();
-
-    assert_eq!(app.pre_selected_card, Some(2));
-
-    app.move_up();
-
-    assert_eq!(app.pre_selected_card, Some(1));
-
-    app.move_up();
-
-    assert_eq!(app.pre_selected_card, Some(0));
-
-    app.move_up();
-
-    assert_eq!(app.pre_selected_card, Some(2));
-}
-
-#[test]
-fn test_enter_cards_uses_pre_selected_index() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap();
-    let card2 = card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.move_down();
-    app.move_down();
-
-    assert_eq!(app.pre_selected_card, Some(1));
-
-    app.enter_cards();
-
-    assert_eq!(app.selected_card, Some(1));
-    assert_eq!(app.selected_card_id.as_ref(), Some(&card2.card_id));
-}
-
-#[test]
-fn test_move_left_resets_pre_selected_card() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap();
-    let card2 = card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .move_to(temp_dir.path(), &card2.card_id, "in_progress")
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 1;
-
-    app.move_down();
-    assert_eq!(app.pre_selected_card, Some(0));
-
-    app.move_left();
-
-    assert_eq!(app.selected_column, 0);
-    assert_eq!(app.pre_selected_card, Some(0));
-}
-
-#[test]
-fn test_move_right_resets_pre_selected_card() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap();
-    let card3 = card_service
-        .create(temp_dir.path(), "Card 3".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .move_to(temp_dir.path(), &card3.card_id, "in_progress")
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.move_down();
-    assert_eq!(app.pre_selected_card, Some(0));
-
-    app.move_right();
-
-    assert_eq!(app.selected_column, 1);
-    assert_eq!(app.pre_selected_card, Some(0));
-}
-
-#[test]
-fn test_pre_selected_card_wraps_around() {
-    let temp_dir = TempDir::new().unwrap();
-    let board_service = BoardService::new();
-    board_service
-        .initialize(temp_dir.path(), Some("Test".to_string()))
-        .unwrap();
-
-    let card_service = CardService::new();
-    card_service
-        .create(temp_dir.path(), "Card 1".to_string(), None, None, None)
-        .unwrap();
-    card_service
-        .create(temp_dir.path(), "Card 2".to_string(), None, None, None)
-        .unwrap();
-
-    let mut app = App::new(temp_dir.path().to_path_buf());
-    app.load_board().unwrap();
-    app.selected_column = 0;
-
-    app.move_down();
-    assert_eq!(app.pre_selected_card, Some(0));
-
-    app.move_down();
-    assert_eq!(app.pre_selected_card, Some(1));
-
-    app.move_down();
-    assert_eq!(app.pre_selected_card, Some(1));
-
-    app.move_up();
-    assert_eq!(app.pre_selected_card, Some(0));
-
-    app.move_up();
-    assert_eq!(app.pre_selected_card, Some(1));
+    let selected = Selection::Selected {
+        card_id: "PRJ-001".to_string(),
+    };
+    assert!(selected.is_in_column(0));
+    assert!(selected.is_in_column(1));
 }

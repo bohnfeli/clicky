@@ -86,3 +86,151 @@ fn test_sanitize_id() {
     );
     assert_eq!(BoardService::sanitize_id("My@Project!"), "myproject");
 }
+
+#[test]
+fn test_reorder_card_up() {
+    // Arrange
+    let temp_dir = TempDir::new().unwrap();
+    let service = BoardService::new();
+    let mut board = service
+        .initialize(temp_dir.path(), Some("Test".to_string()))
+        .unwrap();
+
+    board.create_card("Card 1".to_string(), None, None, None);
+    board.create_card("Card 2".to_string(), None, None, None);
+    board.create_card("Card 3".to_string(), None, None, None);
+    service.save(&board, temp_dir.path()).unwrap();
+
+    let loaded = service.load(temp_dir.path()).unwrap();
+    let column = loaded.columns.get(0).unwrap();
+    let card_ids = column.cards.clone();
+
+    // Act - move second card up
+    let result = service.reorder_card_in_column(temp_dir.path(), &card_ids[1], MoveDirection::Up);
+
+    // Assert
+    assert!(result.is_ok());
+    let reloaded = service.load(temp_dir.path()).unwrap();
+    let column = reloaded.columns.get(0).unwrap();
+    assert_eq!(
+        column.cards,
+        vec![
+            card_ids[1].clone(),
+            card_ids[0].clone(),
+            card_ids[2].clone()
+        ]
+    );
+}
+
+#[test]
+fn test_reorder_card_down() {
+    // Arrange
+    let temp_dir = TempDir::new().unwrap();
+    let service = BoardService::new();
+    let mut board = service
+        .initialize(temp_dir.path(), Some("Test".to_string()))
+        .unwrap();
+
+    board.create_card("Card 1".to_string(), None, None, None);
+    board.create_card("Card 2".to_string(), None, None, None);
+    board.create_card("Card 3".to_string(), None, None, None);
+    service.save(&board, temp_dir.path()).unwrap();
+
+    let loaded = service.load(temp_dir.path()).unwrap();
+    let column = loaded.columns.get(0).unwrap();
+    let card_ids = column.cards.clone();
+
+    // Act - move second card down
+    let result = service.reorder_card_in_column(temp_dir.path(), &card_ids[1], MoveDirection::Down);
+
+    // Assert
+    assert!(result.is_ok());
+    let reloaded = service.load(temp_dir.path()).unwrap();
+    let column = reloaded.columns.get(0).unwrap();
+    assert_eq!(
+        column.cards,
+        vec![
+            card_ids[0].clone(),
+            card_ids[2].clone(),
+            card_ids[1].clone()
+        ]
+    );
+}
+
+#[test]
+fn test_reorder_card_at_top() {
+    // Arrange
+    let temp_dir = TempDir::new().unwrap();
+    let service = BoardService::new();
+    let mut board = service
+        .initialize(temp_dir.path(), Some("Test".to_string()))
+        .unwrap();
+
+    board.create_card("Card 1".to_string(), None, None, None);
+    board.create_card("Card 2".to_string(), None, None, None);
+    service.save(&board, temp_dir.path()).unwrap();
+
+    let loaded = service.load(temp_dir.path()).unwrap();
+    let column = loaded.columns.get(0).unwrap();
+    let card_ids = column.cards.clone();
+
+    // Act - try to move first card up
+    let result = service.reorder_card_in_column(temp_dir.path(), &card_ids[0], MoveDirection::Up);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_reorder_card_at_bottom() {
+    // Arrange
+    let temp_dir = TempDir::new().unwrap();
+    let service = BoardService::new();
+    let mut board = service
+        .initialize(temp_dir.path(), Some("Test".to_string()))
+        .unwrap();
+
+    board.create_card("Card 1".to_string(), None, None, None);
+    board.create_card("Card 2".to_string(), None, None, None);
+    service.save(&board, temp_dir.path()).unwrap();
+
+    let loaded = service.load(temp_dir.path()).unwrap();
+    let column = loaded.columns.get(0).unwrap();
+    let card_ids = column.cards.clone();
+
+    // Act - try to move last card down
+    let result = service.reorder_card_in_column(temp_dir.path(), &card_ids[1], MoveDirection::Down);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_reorder_card_not_found() {
+    // Arrange
+    let temp_dir = TempDir::new().unwrap();
+    let service = BoardService::new();
+    service
+        .initialize(temp_dir.path(), Some("Test".to_string()))
+        .unwrap();
+
+    // Act - try to move non-existent card
+    let result =
+        service.reorder_card_in_column(temp_dir.path(), "NONEXISTENT-123", MoveDirection::Up);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_reorder_card_board_not_found() {
+    // Arrange
+    let temp_dir = TempDir::new().unwrap();
+    let service = BoardService::new();
+
+    // Act - try to reorder card when no board exists
+    let result = service.reorder_card_in_column(temp_dir.path(), "PRJ-001", MoveDirection::Up);
+
+    // Assert
+    assert!(matches!(result, Err(BoardServiceError::BoardNotFound)));
+}

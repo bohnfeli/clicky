@@ -4,6 +4,12 @@ use crate::domain::Board;
 use crate::infrastructure::storage::{BoardStorage, JsonBoardRepository, StorageError};
 use crate::infrastructure::BoardRepository;
 
+/// Direction to move a card within its column.
+pub enum MoveDirection {
+    Up,
+    Down,
+}
+
 /// Service for board-related operations.
 ///
 /// This service provides high-level operations for creating, loading,
@@ -120,6 +126,58 @@ impl BoardService {
     pub fn exists(&self, base_path: &Path) -> bool {
         let board_path = BoardStorage::board_path(base_path);
         self.repository.exists(&board_path)
+    }
+
+    /// Reorders a card within its column by moving it up or down.
+    ///
+    /// # Arguments
+    /// * `base_path` - Directory containing the board
+    /// * `card_id` - ID of the card to reorder
+    /// * `direction` - Direction to move the card (Up or Down)
+    ///
+    /// # Errors
+    /// Returns `BoardServiceError::BoardNotFound` if no board exists.
+    /// Returns an error if the card is not found.
+    pub fn reorder_card_in_column(
+        &self,
+        base_path: &Path,
+        card_id: &str,
+        direction: MoveDirection,
+    ) -> Result<(), BoardServiceError> {
+        let board_path = BoardStorage::board_path(base_path);
+
+        if !self.repository.exists(&board_path) {
+            return Err(BoardServiceError::BoardNotFound);
+        }
+
+        let mut board = self.repository.load(&board_path)?;
+
+        let card = board.get_card(card_id).ok_or_else(|| {
+            BoardServiceError::InvalidName(format!("Card not found: {}", card_id))
+        })?;
+
+        let card_column_id = card.column_id.clone();
+
+        let moved = if let Some(column) = board.columns.iter_mut().find(|c| c.id == card_column_id)
+        {
+            match direction {
+                MoveDirection::Up => column.move_card_up(card_id),
+                MoveDirection::Down => column.move_card_down(card_id),
+            }
+        } else {
+            false
+        };
+
+        if !moved {
+            return Err(BoardServiceError::InvalidName(
+                "Card could not be moved (already at edge)".to_string(),
+            ));
+        }
+
+        board.updated_at = chrono::Utc::now();
+        self.repository.save(&board, &board_path)?;
+
+        Ok(())
     }
 
     /// Sanitizes a name to create a valid board ID.

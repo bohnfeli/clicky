@@ -11,8 +11,7 @@ use ratatui::{
 use std::io;
 
 use crate::cli::tui::app::App;
-use crate::cli::tui::state::AppState;
-use crate::cli::tui::state::{Focus, FormField, InputMode};
+use crate::cli::tui::state::{InputMode, View};
 
 /// Type alias for terminal
 #[allow(dead_code)]
@@ -20,26 +19,25 @@ pub type Tui = Terminal<CrosstermBackend<io::Stdout>>;
 
 /// Draw the footer with context-aware hints.
 fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
-    let hints = match app.state {
-        AppState::Board => match app.focus {
-            Focus::Columns => {
+    let hints = match &app.view {
+        View::Board { selection, .. } => {
+            let card_selected = matches!(
+                selection,
+                crate::cli::tui::state::Selection::Selected { .. }
+            );
+            if card_selected {
+                "k/j/↑↓ Reorder | Enter Deselect | d Details | ←/→/h/l Move card | Esc Deselect | q Quit | ? Help"
+            } else {
                 "h/l/← → Select column | k/j/↑↓ Navigate | Enter Select | d Details | c Create | q Quit | ? Help"
             }
-            Focus::Cards => {
-                if app.card_selected {
-                    "Enter Deselect | d Details | ←/→/h/l Move card | Esc Deselect | q Quit | ? Help"
-                } else {
-                    "Enter Select card | d Details | Esc Deselect | q Quit | ? Help"
-                }
-            }
-            _ => "? Help",
-        },
-        AppState::CardDetail => "e Edit | d Delete | m Move | q Back | ? Help",
-        AppState::CreateCard => "↑↓ Select field | Type to edit | Enter Save | Esc Cancel | ? Help",
-        AppState::EditCard => "↑↓ Select field | Type to edit | Enter Save | Esc Cancel | ? Help",
-        AppState::ConfirmDelete => "y Confirm | n Cancel",
-        AppState::MoveCard => "h/l/← → Select column | Enter Confirm | Esc Cancel | ? Help",
-        AppState::Help => "Esc Close help | ? Toggle",
+        }
+        View::CardDetail { .. } => "e Edit | d Delete | m Move | q Back | ? Help",
+        View::CardForm { .. } => {
+            "↑↓ Select field | Type to edit | Enter Save | Esc Cancel | ? Help"
+        }
+        View::ConfirmDelete { .. } => "y Confirm | n Cancel",
+        View::MoveCard { .. } => "h/l/← → Select column | Enter Confirm | Esc Cancel | ? Help",
+        View::Help { .. } => "Esc Close help | ? Toggle",
     };
 
     let paragraph = Paragraph::new(hints)
@@ -65,8 +63,8 @@ fn draw_help_overlay(frame: &mut Frame) {
         Line::from(" BOARD VIEW:"),
         Line::from("   h/←   Previous column"),
         Line::from("   l/→   Next column"),
-        Line::from("   k/↑   Previous card"),
-        Line::from("   j/↓   Next card"),
+        Line::from("   k/↑   Previous card / Move card up (when selected)"),
+        Line::from("   j/↓   Next card / Move card down (when selected)"),
         Line::from("   Enter Select card (first press)"),
         Line::from("   Enter Deselect card (when selected)"),
         Line::from("   d     Show card details"),
@@ -109,7 +107,7 @@ fn draw_help_overlay(frame: &mut Frame) {
 /// Draw application UI.
 pub fn draw(frame: &mut Frame, app: &mut App) {
     // If help is shown, draw it and return early
-    if app.show_help {
+    if app.view.is_help() {
         draw_help_overlay(frame);
         return;
     }
@@ -126,14 +124,13 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .split(frame.area());
 
     // Draw main content based on state
-    match app.state {
-        AppState::Board => draw_board_view(frame, app, chunks[1]),
-        AppState::CardDetail => draw_card_detail_view(frame, app, chunks[1]),
-        AppState::CreateCard => draw_create_card_view(frame, app, chunks[1]),
-        AppState::EditCard => draw_edit_card_view(frame, app, chunks[1]),
-        AppState::ConfirmDelete => draw_confirm_delete_view(frame, app, chunks[1]),
-        AppState::MoveCard => draw_move_card_view(frame, app, chunks[1]),
-        AppState::Help => {}
+    match &app.view {
+        View::Board { .. } => draw_board_view(frame, app, chunks[1]),
+        View::CardDetail { .. } => draw_card_detail_view(frame, app, chunks[1]),
+        View::CardForm { .. } => draw_form_view(frame, app, chunks[1]),
+        View::ConfirmDelete { .. } => draw_confirm_delete_view(frame, app, chunks[1]),
+        View::MoveCard { .. } => draw_move_card_view(frame, app, chunks[1]),
+        View::Help { .. } => {}
     }
 
     // Draw error message overlay (if present)
@@ -209,18 +206,26 @@ fn draw_column(frame: &mut Frame, area: Rect, app: &App, column_id: &str, index:
         .filter(|c| c.column_id == column_id)
         .collect();
 
-    let is_focused = app.selected_column == index;
+    let (selected_column, selection) = match &app.view {
+        View::Board {
+            selected_column,
+            selection,
+        } => (*selected_column, selection),
+        _ => return,
+    };
+
+    let is_focused = selected_column == index;
 
     let mut items: Vec<ListItem> = Vec::new();
 
     for (i, card) in cards.iter().enumerate() {
-        let is_selected = app.get_selected_card_index() == Some(i)
-            && is_focused
-            && app.focus == Focus::Cards
-            && app.card_selected;
-
-        let is_pre_selected =
-            app.pre_selected_card == Some(i) && is_focused && app.focus == Focus::Columns;
+        let (is_selected, is_pre_selected) = match selection {
+            crate::cli::tui::state::Selection::Selected { card_id } => (card.id == *card_id, false),
+            crate::cli::tui::state::Selection::Highlighted { column, card_index } => {
+                (*column == index && *card_index == i, true)
+            }
+            _ => (false, false),
+        };
 
         let style = if is_selected {
             Style::default()
@@ -267,7 +272,7 @@ fn draw_column(frame: &mut Frame, area: Rect, app: &App, column_id: &str, index:
     let block = Block::default()
         .borders(Borders::ALL)
         .title(format!(" {} ({}) ", column.name, cards.len()))
-        .border_style(if is_focused && app.focus == Focus::Columns {
+        .border_style(if is_focused {
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
@@ -307,9 +312,9 @@ fn draw_card_detail_view(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(header, chunks[0]);
 
     // Card content
-    if let Some(card_id) = app.selected_card_id() {
+    if let Some(card_id) = app.view.selected_card_id() {
         if let Some(board) = &app.board {
-            if let Some(card) = board.get_card(&card_id) {
+            if let Some(card) = board.get_card(card_id) {
                 let column = board.columns.iter().find(|c| c.id == card.column_id);
 
                 let mut text = vec![
@@ -350,8 +355,12 @@ fn draw_card_detail_view(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-/// Draw create card view.
-fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
+/// Draw create/edit card view.
+fn draw_form_view(frame: &mut Frame, app: &App, area: Rect) {
+    let Some(form_data) = app.get_form_data() else {
+        return;
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
@@ -365,18 +374,29 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
         ])
         .split(area);
 
+    let is_edit = matches!(
+        &app.view,
+        View::CardForm {
+            mode: crate::cli::tui::state::FormMode::Edit { .. },
+        }
+    );
+
     // Header
-    let header = Paragraph::new(" Create Card ")
-        .style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )
-        .alignment(Alignment::Center);
+    let header = Paragraph::new(if is_edit {
+        " Edit Card "
+    } else {
+        " Create Card "
+    })
+    .style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )
+    .alignment(Alignment::Center);
     frame.render_widget(header, chunks[0]);
 
     // Title field
-    let title_focused = app.form_field == FormField::Title;
+    let title_focused = form_data.current_field == crate::cli::tui::state::FormField::Title;
     let title_block = Block::default()
         .borders(Borders::ALL)
         .title(if title_focused {
@@ -393,9 +413,9 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
         });
 
     let title_text = if title_focused {
-        format!("{} ", app.form_data.title)
+        format!("{} ", form_data.title)
     } else {
-        app.form_data.title.clone()
+        form_data.title.clone()
     };
 
     let title_paragraph = Paragraph::new(title_text.as_str())
@@ -404,7 +424,7 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(title_paragraph, chunks[1]);
 
     // Description field
-    let desc_focused = app.form_field == FormField::Description;
+    let desc_focused = form_data.current_field == crate::cli::tui::state::FormField::Description;
     let desc_block = Block::default()
         .borders(Borders::ALL)
         .title(if desc_focused {
@@ -421,9 +441,9 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
         });
 
     let desc_text = if desc_focused {
-        format!("{} ", app.form_data.description)
+        format!("{} ", form_data.description)
     } else {
-        app.form_data.description.clone()
+        form_data.description.clone()
     };
 
     let desc_paragraph = Paragraph::new(desc_text.as_str())
@@ -432,7 +452,7 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(desc_paragraph, chunks[2]);
 
     // Assignee field
-    let assignee_focused = app.form_field == FormField::Assignee;
+    let assignee_focused = form_data.current_field == crate::cli::tui::state::FormField::Assignee;
     let assignee_block = Block::default()
         .borders(Borders::ALL)
         .title(if assignee_focused {
@@ -449,9 +469,9 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
         });
 
     let assignee_text = if assignee_focused {
-        format!("{} ", app.form_data.assignee)
+        format!("{} ", form_data.assignee)
     } else {
-        app.form_data.assignee.clone()
+        form_data.assignee.clone()
     };
 
     let assignee_paragraph = Paragraph::new(assignee_text.as_str())
@@ -460,11 +480,11 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(assignee_paragraph, chunks[3]);
 
     // Set cursor position if in editing mode
-    if app.input_mode == InputMode::Editing {
-        let (field_area, input_text) = match app.form_field {
-            FormField::Title => (chunks[1], &app.form_data.title),
-            FormField::Description => (chunks[2], &app.form_data.description),
-            FormField::Assignee => (chunks[3], &app.form_data.assignee),
+    if form_data.input_mode == InputMode::Editing {
+        let (field_area, input_text) = match form_data.current_field {
+            crate::cli::tui::state::FormField::Title => (chunks[1], &form_data.title),
+            crate::cli::tui::state::FormField::Description => (chunks[2], &form_data.description),
+            crate::cli::tui::state::FormField::Assignee => (chunks[3], &form_data.assignee),
         };
 
         let cursor_x = field_area.x + input_text.len() as u16 + 1;
@@ -476,7 +496,7 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
     let column_name = app
         .board
         .as_ref()
-        .and_then(|b| b.columns.get(app.selected_column))
+        .and_then(|b| b.columns.get(app.view.selected_column()))
         .map(|c| c.name.as_str())
         .unwrap_or("todo");
 
@@ -491,11 +511,6 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(column_paragraph, chunks[4]);
 }
 
-/// Draw edit card view.
-fn draw_edit_card_view(frame: &mut Frame, app: &App, area: Rect) {
-    draw_create_card_view(frame, app, area);
-}
-
 /// Draw confirmation dialog for deletion.
 fn draw_confirm_delete_view(frame: &mut Frame, app: &App, area: Rect) {
     let area = centered_rect(area, 40, 10);
@@ -507,7 +522,7 @@ fn draw_confirm_delete_view(frame: &mut Frame, app: &App, area: Rect) {
         .title(" Confirm Delete ")
         .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
 
-    let text = if let Some(card_id) = app.selected_card_id() {
+    let text = if let Some(card_id) = app.view.selected_card_id() {
         format!("Are you sure you want to delete {}?", card_id)
     } else {
         "Are you sure you want to delete this card?".to_string()
@@ -548,52 +563,54 @@ fn draw_move_card_view(frame: &mut Frame, app: &App, area: Rect) {
         .alignment(Alignment::Center);
     frame.render_widget(header, chunks[0]);
 
-    if let Some(card_id) = app.selected_card_id() {
+    if let View::MoveCard {
+        card_id,
+        target_column,
+    } = &app.view
+    {
         if let Some(board) = &app.board {
-            if let Some(card) = board.get_card(&card_id) {
+            if let Some(card) = board.get_card(card_id) {
                 let card_info = format!("Card: {} - {}", card.id, card.title);
                 let paragraph = Paragraph::new(card_info).alignment(Alignment::Center);
                 frame.render_widget(paragraph, chunks[1]);
             }
+
+            let column_items: Vec<ListItem> = board
+                .columns
+                .iter()
+                .enumerate()
+                .map(|(i, column)| {
+                    let is_selected = i == *target_column;
+                    let style = if is_selected {
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+
+                    let text = format!(
+                        "  {} ({}) ",
+                        column.name,
+                        board
+                            .cards
+                            .iter()
+                            .filter(|c| c.column_id == column.id)
+                            .count()
+                    );
+                    ListItem::new(Span::styled(text, style))
+                })
+                .collect();
+
+            let list = List::new(column_items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(" Select Target Column "),
+                )
+                .highlight_style(Style::default().add_modifier(Modifier::BOLD));
+            frame.render_widget(list, chunks[2]);
         }
-    }
-
-    if let Some(board) = &app.board {
-        let column_items: Vec<ListItem> = board
-            .columns
-            .iter()
-            .enumerate()
-            .map(|(i, column)| {
-                let is_selected = i == app.selected_target_column;
-                let style = if is_selected {
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
-
-                let text = format!(
-                    "  {} ({}) ",
-                    column.name,
-                    board
-                        .cards
-                        .iter()
-                        .filter(|c| c.column_id == column.id)
-                        .count()
-                );
-                ListItem::new(Span::styled(text, style))
-            })
-            .collect();
-
-        let list = List::new(column_items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Select Target Column "),
-            )
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD));
-        frame.render_widget(list, chunks[2]);
     }
 
     let hint = " h/l/← → Select column | Enter Confirm | Esc Cancel ";
