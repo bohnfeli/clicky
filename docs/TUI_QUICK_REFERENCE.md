@@ -31,7 +31,7 @@ clicky tui
 |-----|--------|
 | `↑/k` | Previous field |
 | `↓/j` | Next field |
-| `i` | Enter edit mode |
+| `Type` | Enter edit mode automatically and type |
 | `Enter` | Save field / Submit card |
 | `Esc` | Cancel / Return to board |
 
@@ -60,7 +60,7 @@ clicky tui
 ## Tips
 
 1. Create cards in the column you want them to appear (column is read-only during creation)
-2. Press `i` before typing in a field
+2. Just start typing when a field is focused (auto-enters edit mode)
 3. Press `Enter` to save each field and move to the next
 4. The final `Enter` submits the card
 5. Use `Esc` at any time to cancel and return to the board
@@ -70,7 +70,7 @@ clicky tui
 
 **Create a card:**
 ```
-c → i → Type title → Enter → i → Type description → Enter → i → Type assignee → Enter → Enter
+c → Type title → Enter → Type description → Enter → Type assignee → Enter → Enter
 ```
 
 **Delete a card:**
