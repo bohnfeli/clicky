@@ -51,7 +51,7 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Draw help overlay with comprehensive shortcuts.
 fn draw_help_overlay(frame: &mut Frame) {
-    let area = centered_rect(frame.size(), 70, 80);
+    let area = centered_rect(frame.area(), 70, 80);
 
     frame.render_widget(Clear, area);
 
@@ -123,7 +123,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             Constraint::Min(0),
             Constraint::Length(2),
         ])
-        .split(frame.size());
+        .split(frame.area());
 
     // Draw main content based on state
     match app.state {
@@ -198,8 +198,10 @@ fn draw_columns_and_cards(frame: &mut Frame, area: Rect, app: &App) {
 
 /// Draw a single column with its cards.
 fn draw_column(frame: &mut Frame, area: Rect, app: &App, column_id: &str, index: usize) {
-    let board = app.board.as_ref().unwrap();
-    let column = board.columns.iter().find(|c| c.id == column_id).unwrap();
+    let Some(board) = &app.board else { return };
+    let Some(column) = board.columns.iter().find(|c| c.id == column_id) else {
+        return;
+    };
 
     let cards: Vec<_> = board
         .cards
@@ -467,7 +469,7 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
 
         let cursor_x = field_area.x + input_text.len() as u16 + 1;
         let cursor_y = field_area.y + 1;
-        frame.set_cursor(cursor_x, cursor_y);
+        frame.set_cursor_position((cursor_x, cursor_y));
     }
 
     // Column (read-only, shows current selection)
@@ -603,7 +605,7 @@ fn draw_move_card_view(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Draw error message overlay.
 fn draw_error_message(frame: &mut Frame, message: &str) {
-    let area = centered_rect(frame.size(), 60, 6);
+    let area = centered_rect(frame.area(), 60, 6);
 
     frame.render_widget(Clear, area);
 

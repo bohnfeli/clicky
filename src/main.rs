@@ -28,9 +28,10 @@ fn main() {
     let cli = Cli::parse();
 
     // Determine the base path
-    let base_path = cli
-        .path
-        .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let base_path = cli.path.unwrap_or_else(|| {
+        // Safe: provides fallback to current directory, then to "."
+        env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    });
 
     // Execute the command
     let result = match cli.command {
@@ -69,6 +70,7 @@ fn main() {
             } else {
                 cmd_create(
                     &base_path,
+                    // SAFETY: Clap enforces this via required_unless_present = "interactive"
                     title.expect("Title is required unless using interactive mode"),
                     description,
                     assignee,
@@ -94,7 +96,9 @@ fn main() {
             } else {
                 cmd_move(
                     &base_path,
+                    // SAFETY: Clap enforces this via required_unless_present = "interactive"
                     &card_id.expect("Card ID is required unless using interactive mode"),
+                    // SAFETY: Clap enforces this via required_unless_present = "interactive"
                     &column.expect("Column is required unless using interactive mode"),
                 )
             }
@@ -116,6 +120,7 @@ fn main() {
             } else {
                 cmd_show(
                     &base_path,
+                    // SAFETY: Clap enforces this via required_unless_present = "interactive"
                     &card_id.expect("Card ID is required unless using interactive mode"),
                 )
             }
@@ -161,6 +166,7 @@ fn main() {
             } else {
                 cmd_update(
                     &base_path,
+                    // SAFETY: Clap enforces this via required_unless_present = "interactive"
                     &card_id.expect("Card ID is required unless using interactive mode"),
                     title,
                     description,
@@ -239,10 +245,11 @@ fn cmd_create(
     let result = service.create(base_path, title, description, assignee, column)?;
 
     println!("✓ Created card {}", result.card_id);
-    println!(
-        "  Title: {}",
-        result.board.get_card(&result.card_id).unwrap().title
-    );
+    let card = result
+        .board
+        .get_card(&result.card_id)
+        .ok_or_else(|| format!("Card {} not found after creation", result.card_id))?;
+    println!("  Title: {}", card.title);
 
     Ok(())
 }
@@ -255,7 +262,9 @@ fn cmd_move(
     let service = CardService::new();
 
     let board = service.move_to(base_path, card_id, column)?;
-    let card = board.get_card(card_id).unwrap();
+    let card = board
+        .get_card(card_id)
+        .ok_or_else(|| format!("Card {} not found after move", card_id))?;
     let column_name = board
         .columns
         .iter()
@@ -273,7 +282,9 @@ fn cmd_show(base_path: &Path, card_id: &str) -> Result<(), Box<dyn std::error::E
     let service = CardService::new();
 
     let board = service.get(base_path, card_id)?;
-    let card = board.get_card(card_id).unwrap();
+    let card = board
+        .get_card(card_id)
+        .ok_or_else(|| format!("Card {} not found", card_id))?;
     let column = board
         .columns
         .iter()
@@ -376,7 +387,9 @@ fn cmd_update(
     };
 
     let board = service.update(base_path, card_id, title, desc_update, assignee_update)?;
-    let card = board.get_card(card_id).unwrap();
+    let card = board
+        .get_card(card_id)
+        .ok_or_else(|| format!("Card {} not found after update", card_id))?;
 
     println!("✓ Updated {}", card_id);
     println!("  Title: {}", card.title);
@@ -418,7 +431,7 @@ fn cmd_info(base_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         // Try to find a board in parent directories
         match BoardStorage::find_board_path(base_path) {
             Some(path) => {
-                let found_base = path.parent().unwrap().parent().unwrap();
+                let found_base = path.parent().and_then(|p| p.parent()).unwrap_or(base_path);
                 println!("Board found in parent directory: {}", found_base.display());
                 println!(
                     "Run 'clicky --path {} info' to view it.",
