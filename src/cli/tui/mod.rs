@@ -45,11 +45,15 @@ pub fn run(board_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error
     res
 }
 
-fn run_app<B: ratatui::backend::Backend>(
+fn run_app<B>(
     terminal: &mut ratatui::Terminal<B>,
     app: &mut App,
     events: &mut events::EventHandler,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    B: ratatui::backend::Backend,
+    <B as ratatui::backend::Backend>::Error: std::error::Error + Send + Sync + 'static,
+{
     use crossterm::cursor::{Hide, Show};
     use crossterm::event::KeyCode;
     use crossterm::execute;

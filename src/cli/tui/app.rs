@@ -453,10 +453,8 @@ impl App {
 
     pub fn quick_move_card_right(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if self.card_selected {
-            if let Some(_board) = &self.board {
-                if self.selected_column
-                    < self.board.as_ref().unwrap().columns.len().saturating_sub(1)
-                {
+            if let Some(board) = &self.board {
+                if self.selected_column < board.columns.len().saturating_sub(1) {
                     let target_column_idx = self.selected_column + 1;
                     self.move_selected_card_to(target_column_idx)?;
                 }
