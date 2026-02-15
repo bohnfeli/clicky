@@ -1,79 +1,39 @@
 //! TUI application state.
 
+use crate::application::board_service::MoveDirection;
 use crate::application::{BoardService, CardService};
-use crate::cli::tui::state::{AppState, CardFormData, Focus, FormField, InputMode};
+use crate::cli::tui::state::{CardFormData, FormMode, InputMode, Selection, View};
 use crate::domain::Board;
 use std::path::PathBuf;
 
 /// Main TUI application.
 pub struct App {
-    /// Current application state (view mode)
-    pub state: AppState,
-    /// Current focus area
-    pub focus: Focus,
-    /// Input mode (normal or editing)
-    pub input_mode: InputMode,
+    /// Current view state (replaces state, focus, input_mode, etc.)
+    pub view: View,
     /// Board path
     pub board_path: PathBuf,
     /// Board data
     pub board: Option<Board>,
-    /// Currently selected column index
-    pub selected_column: usize,
-    /// Currently selected card index within column
-    pub selected_card: Option<usize>,
-    /// Currently selected card ID
-    pub selected_card_id: Option<String>,
-    /// Pre-selected card index in column focus (highlighted before Enter)
-    pub pre_selected_card: Option<usize>,
-    /// Currently selected target column for moving cards
-    pub selected_target_column: usize,
-    /// Current input string (for editing)
-    #[allow(dead_code)]
-    pub input: String,
-    /// Input cursor position
-    #[allow(dead_code)]
-    pub cursor_position: usize,
     /// Error message to display
     pub error_message: Option<String>,
-    /// Whether to show help overlay
-    pub show_help: bool,
-    /// Current form field being edited
-    pub form_field: FormField,
     /// Form data for card creation/editing
-    pub form_data: CardFormData,
-    /// Card ID being edited (None for create mode)
-    pub editing_card_id: Option<String>,
-    /// Whether a card is selected (first Enter pressed) but not showing details
-    pub card_selected: bool,
+    pub form_data: Option<CardFormData>,
 }
 
 impl App {
     pub fn new(board_path: PathBuf) -> Self {
         Self {
-            state: AppState::Board,
-            focus: Focus::Columns,
-            input_mode: InputMode::default(),
+            view: View::default(),
             board_path,
             board: None,
-            selected_column: 0,
-            selected_card: None,
-            selected_card_id: None,
-            pre_selected_card: None,
-            selected_target_column: 0,
-            input: String::new(),
-            cursor_position: 0,
             error_message: None,
-            show_help: false,
-            form_field: FormField::Title,
-            form_data: CardFormData::default(),
-            editing_card_id: None,
-            card_selected: false,
+            form_data: None,
         }
     }
 
     pub fn toggle_help(&mut self) {
-        self.show_help = !self.show_help;
-        if !self.show_help {
+        self.view = self.view.clone().toggle_help();
+        if !self.view.is_help() {
             self.clear_error();
         }
     }
@@ -91,221 +51,152 @@ impl App {
         Ok(())
     }
 
-    pub fn selected_card_id(&self) -> Option<String> {
-        if let (Some(board), Some(card_idx)) = (&self.board, self.selected_card) {
-            let column = board.columns.get(self.selected_column)?;
-            let cards_in_column: Vec<_> = board
-                .cards
-                .iter()
-                .filter(|c| c.column_id == column.id)
-                .collect();
-
-            if let Some(card) = cards_in_column.get(card_idx) {
-                return Some(card.id.clone());
-            }
-        }
-        None
-    }
-
-    fn update_selected_card_id_from_index(&mut self, card_idx: usize) {
-        if let Some(board) = &self.board {
-            if let Some(column) = board.columns.get(self.selected_column) {
-                let cards_in_column: Vec<_> = board
-                    .cards
-                    .iter()
-                    .filter(|c| c.column_id == column.id)
-                    .collect();
-                if let Some(card) = cards_in_column.get(card_idx) {
-                    self.selected_card_id = Some(card.id.clone());
-                }
-            }
-        }
-    }
-
-    pub fn get_selected_card_index(&self) -> Option<usize> {
-        if let (Some(board), Some(card_id)) = (&self.board, &self.selected_card_id) {
-            if let Some(column) = board.columns.get(self.selected_column) {
-                let cards_in_column: Vec<_> = board
-                    .cards
-                    .iter()
-                    .filter(|c| c.column_id == column.id)
-                    .collect();
-                for (i, card) in cards_in_column.iter().enumerate() {
-                    if card.id == *card_id {
-                        return Some(i);
-                    }
-                }
-            }
-        }
-        None
-    }
-
     pub fn get_current_column(&self) -> Option<&str> {
+        let selected_column = self.view.selected_column();
         self.board
             .as_ref()
-            .and_then(|b| b.columns.get(self.selected_column))
+            .and_then(|b| b.columns.get(selected_column))
             .map(|c| c.id.as_str())
     }
 
     pub fn move_left(&mut self) {
-        if self.selected_column > 0 {
-            self.selected_column -= 1;
-            self.selected_card = None;
-            self.selected_card_id = None;
-            self.pre_selected_card = None;
-            self.focus = Focus::Columns;
-            self.init_pre_selected_card();
+        if let View::Board {
+            selected_column, ..
+        } = &mut self.view
+        {
+            if *selected_column > 0 {
+                *selected_column -= 1;
+                self.reset_selection();
+            }
         }
     }
 
     pub fn move_right(&mut self) {
-        if let Some(board) = &self.board {
-            if self.selected_column < board.columns.len().saturating_sub(1) {
-                self.selected_column += 1;
-                self.selected_card = None;
-                self.selected_card_id = None;
-                self.pre_selected_card = None;
-                self.focus = Focus::Columns;
-                self.init_pre_selected_card();
+        if let View::Board {
+            selected_column, ..
+        } = &mut self.view
+        {
+            if let Some(board) = &self.board {
+                if *selected_column < board.columns.len().saturating_sub(1) {
+                    *selected_column += 1;
+                    self.reset_selection();
+                }
             }
         }
     }
 
     pub fn move_up(&mut self) {
-        if self.focus == Focus::Columns {
+        if let View::Board {
+            selected_column,
+            selection,
+        } = &mut self.view
+        {
             if let Some(board) = &self.board {
-                if let Some(column) = board.columns.get(self.selected_column) {
+                if let Some(column) = board.columns.get(*selected_column) {
                     let card_count = board
                         .cards
                         .iter()
                         .filter(|c| c.column_id == column.id)
                         .count();
 
-                    if card_count > 0 {
-                        let new_idx = if let Some(current) = self.pre_selected_card {
-                            if current == 0 {
-                                card_count - 1
-                            } else {
-                                current - 1
+                    match selection {
+                        Selection::Highlighted { column, card_index }
+                            if *column == *selected_column =>
+                        {
+                            *card_index = card_index.saturating_sub(1);
+                        }
+                        _ => {
+                            if card_count > 0 {
+                                *selection = Selection::Highlighted {
+                                    column: *selected_column,
+                                    card_index: card_count.saturating_sub(1),
+                                };
                             }
-                        } else {
-                            card_count - 1
-                        };
-                        self.pre_selected_card = Some(new_idx);
+                        }
                     }
-                }
-            }
-        } else if let Some(card_idx) = self.get_selected_card_index() {
-            if card_idx > 0 {
-                let new_idx = card_idx - 1;
-                self.selected_card = Some(new_idx);
-                self.update_selected_card_id_from_index(new_idx);
-            }
-        } else if let Some(board) = &self.board {
-            if let Some(column) = board.columns.get(self.selected_column) {
-                let card_count = board
-                    .cards
-                    .iter()
-                    .filter(|c| c.column_id == column.id)
-                    .count();
-                if card_count > 0 {
-                    let new_idx = card_count - 1;
-                    self.selected_card = Some(new_idx);
-                    self.update_selected_card_id_from_index(new_idx);
-                    self.focus = Focus::Cards;
                 }
             }
         }
     }
 
     pub fn move_down(&mut self) {
-        if self.focus == Focus::Columns {
+        if let View::Board {
+            selected_column,
+            selection,
+        } = &mut self.view
+        {
             if let Some(board) = &self.board {
-                if let Some(column) = board.columns.get(self.selected_column) {
+                if let Some(column) = board.columns.get(*selected_column) {
                     let card_count = board
                         .cards
                         .iter()
                         .filter(|c| c.column_id == column.id)
                         .count();
 
-                    if card_count > 0 {
-                        let new_idx = if let Some(current) = self.pre_selected_card {
-                            if current < card_count - 1 {
-                                current + 1
-                            } else {
-                                card_count - 1
+                    match selection {
+                        Selection::Highlighted { column, card_index }
+                            if *column == *selected_column =>
+                        {
+                            if *card_index < card_count.saturating_sub(1) {
+                                *card_index += 1;
                             }
-                        } else {
-                            0
-                        };
-                        self.pre_selected_card = Some(new_idx);
+                        }
+                        _ => {
+                            if card_count > 0 {
+                                *selection = Selection::Highlighted {
+                                    column: *selected_column,
+                                    card_index: 0,
+                                };
+                            }
+                        }
                     }
-                }
-            }
-        } else if let Some(board) = &self.board {
-            if let Some(column) = board.columns.get(self.selected_column) {
-                let card_count = board
-                    .cards
-                    .iter()
-                    .filter(|c| c.column_id == column.id)
-                    .count();
-                let current_idx = self.get_selected_card_index().unwrap_or(0);
-
-                if current_idx < card_count.saturating_sub(1) {
-                    let new_idx = current_idx + 1;
-                    self.selected_card = Some(new_idx);
-                    self.update_selected_card_id_from_index(new_idx);
-                    self.focus = Focus::Cards;
                 }
             }
         }
     }
 
     pub fn enter_cards(&mut self) {
-        self.focus = Focus::Cards;
-        let idx = self.pre_selected_card.unwrap_or(0);
-        self.selected_card = Some(idx);
-        self.update_selected_card_id_from_index(idx);
-        self.card_selected = true;
-    }
+        if let View::Board {
+            selected_column,
+            selection,
+        } = &mut self.view
+        {
+            if let Some(board) = &self.board {
+                if let Some(column) = board.columns.get(*selected_column) {
+                    let card_id = match selection {
+                        Selection::Highlighted {
+                            column: col,
+                            card_index,
+                        } if *col == *selected_column => column.cards.get(*card_index).cloned(),
+                        Selection::Highlighted { .. } => column.cards.first().cloned(),
+                        _ => return,
+                    };
 
-    pub fn enter_card_detail(&mut self) {
-        if self.focus == Focus::Cards && self.get_selected_card_index().is_some() {
-            if !self.card_selected {
-                self.card_selected = true;
-            } else {
-                self.deselect_card();
-            }
-        }
-    }
-
-    pub fn open_card_detail(&mut self) {
-        if self.focus == Focus::Columns {
-            self.enter_cards();
-        }
-        self.state = AppState::CardDetail;
-    }
-
-    fn init_pre_selected_card(&mut self) {
-        if let Some(board) = &self.board {
-            if let Some(column) = board.columns.get(self.selected_column) {
-                let card_count = board
-                    .cards
-                    .iter()
-                    .filter(|c| c.column_id == column.id)
-                    .count();
-                if card_count > 0 {
-                    self.pre_selected_card = Some(0);
+                    if let Some(id) = card_id {
+                        *selection = Selection::Selected { card_id: id };
+                    }
                 }
             }
         }
     }
 
+    pub fn open_card_detail(&mut self) {
+        self.enter_cards();
+        if let Some(card_id) = self.view.selected_card_id().map(|s| s.to_string()) {
+            self.view = View::CardDetail { card_id };
+        }
+    }
+
+    fn reset_selection(&mut self) {
+        if let View::Board { selection, .. } = &mut self.view {
+            *selection = Selection::None;
+        }
+    }
+
     pub fn exit_cards(&mut self) {
-        self.focus = Focus::Columns;
-        self.selected_card = None;
-        self.selected_card_id = None;
-        self.card_selected = false;
+        if let View::Board { selection, .. } = &mut self.view {
+            *selection = Selection::None;
+        }
     }
 
     pub fn clear_error(&mut self) {
@@ -313,161 +204,153 @@ impl App {
     }
 
     pub fn start_create_card(&mut self) {
-        self.clear_form();
-        self.state = AppState::CreateCard;
-        self.form_field = FormField::Title;
-        self.input_mode = InputMode::Normal;
+        let column_id = self.get_current_column().unwrap_or("todo").to_string();
+        self.view = View::CardForm {
+            mode: FormMode::Create { column_id },
+        };
+        self.form_data = Some(CardFormData::default());
     }
 
     pub fn next_form_field(&mut self) {
-        self.form_field = match self.form_field {
-            FormField::Title => FormField::Description,
-            FormField::Description => FormField::Assignee,
-            FormField::Assignee => FormField::Title,
-        };
+        if let Some(form_data) = &mut self.form_data {
+            form_data.current_field = form_data.current_field.next();
+        }
     }
 
     pub fn prev_form_field(&mut self) {
-        self.form_field = match self.form_field {
-            FormField::Title => FormField::Assignee,
-            FormField::Description => FormField::Title,
-            FormField::Assignee => FormField::Description,
-        };
+        if let Some(form_data) = &mut self.form_data {
+            form_data.current_field = form_data.current_field.prev();
+        }
     }
 
-    pub fn get_current_field_input_mut(&mut self) -> &mut String {
-        match self.form_field {
-            FormField::Title => &mut self.form_data.title,
-            FormField::Description => &mut self.form_data.description,
-            FormField::Assignee => &mut self.form_data.assignee,
+    pub fn get_current_field_input_mut(&mut self) -> Option<&mut String> {
+        self.form_data.as_mut().map(|fd| fd.current_field_mut())
+    }
+
+    pub fn set_input_mode(&mut self, mode: InputMode) {
+        if let Some(form_data) = &mut self.form_data {
+            form_data.input_mode = mode;
         }
+    }
+
+    pub fn get_input_mode(&self) -> InputMode {
+        self.form_data
+            .as_ref()
+            .map(|fd| fd.input_mode)
+            .unwrap_or(InputMode::Normal)
     }
 
     pub fn submit_card(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let title = self.form_data.title.trim();
-        if title.is_empty() {
+        let form_data = self.form_data.take().ok_or("No form data available")?;
+
+        if !form_data.is_valid() {
             self.error_message = Some("Title is required".to_string());
+            self.form_data = Some(form_data);
             return Ok(());
         }
 
-        let description = if self.form_data.description.trim().is_empty() {
-            None
-        } else {
-            Some(self.form_data.description.clone())
-        };
+        let (title, description, assignee) = form_data.to_card_values();
 
-        let assignee = if self.form_data.assignee.trim().is_empty() {
-            None
-        } else {
-            Some(self.form_data.assignee.clone())
+        let column_id = match &self.view {
+            View::CardForm {
+                mode: FormMode::Create { column_id },
+            } => column_id.clone(),
+            View::CardForm {
+                mode: FormMode::Edit { card_id },
+            } => {
+                if let Some(board) = &self.board {
+                    if let Some(card) = board.get_card(card_id) {
+                        card.column_id.clone()
+                    } else {
+                        "todo".to_string()
+                    }
+                } else {
+                    "todo".to_string()
+                }
+            }
+            _ => "todo".to_string(),
         };
-
-        let column_id = self.get_current_column().unwrap_or("todo").to_string();
 
         let card_service = CardService::new();
-        card_service.create(
-            &self.board_path,
-            title.to_string(),
-            description,
-            assignee,
-            Some(column_id),
-        )?;
+        match &self.view {
+            View::CardForm {
+                mode: FormMode::Edit { card_id },
+            } => {
+                card_service.update(
+                    &self.board_path,
+                    card_id,
+                    Some(title),
+                    Some(description),
+                    Some(assignee),
+                )?;
+            }
+            _ => {
+                card_service.create(
+                    &self.board_path,
+                    title,
+                    description,
+                    assignee,
+                    Some(column_id),
+                )?;
+            }
+        }
 
         self.load_board()?;
-        self.clear_form();
-        self.state = AppState::Board;
+        self.view = View::default();
         Ok(())
     }
 
     pub fn cancel_card(&mut self) {
-        self.clear_form();
-        self.state = AppState::Board;
+        self.form_data = None;
+        self.view = View::default();
     }
 
     pub fn start_move_card(&mut self) {
-        if let Some(card_id) = self.selected_card_id() {
-            self.state = AppState::MoveCard;
-            if let Some(board) = &self.board {
-                if let Some(card) = board.get_card(&card_id) {
-                    self.selected_target_column = board
-                        .columns
-                        .iter()
-                        .position(|c| c.id == card.column_id)
-                        .unwrap_or(0);
-                }
+        if let Some(card_id) = self.view.selected_card_id().map(|s| s.to_string()) {
+            let target_column = if let Some(board) = &self.board {
+                board
+                    .get_card(&card_id)
+                    .and_then(|c| board.columns.iter().position(|col| col.id == c.column_id))
+            } else {
+                None
             }
+            .unwrap_or(0);
+
+            self.view = View::MoveCard {
+                card_id,
+                target_column,
+            };
             self.clear_error();
         }
     }
 
     pub fn move_card_left(&mut self) {
-        if self.selected_target_column > 0 {
-            self.selected_target_column -= 1;
+        if let View::MoveCard { target_column, .. } = &mut self.view {
+            if *target_column > 0 {
+                *target_column -= 1;
+            }
         }
     }
 
     pub fn move_card_right(&mut self) {
-        if let Some(board) = &self.board {
-            if self.selected_target_column < board.columns.len().saturating_sub(1) {
-                self.selected_target_column += 1;
+        if let View::MoveCard { target_column, .. } = &mut self.view {
+            if let Some(board) = &self.board {
+                if *target_column < board.columns.len().saturating_sub(1) {
+                    *target_column += 1;
+                }
             }
         }
     }
 
     pub fn confirm_move_card(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let card_id = self.selected_card_id().ok_or("No card selected")?;
+        let (card_id, target_column_idx) = match &self.view {
+            View::MoveCard {
+                card_id,
+                target_column,
+            } => (card_id.clone(), *target_column),
+            _ => return Err("Not in move card view".into()),
+        };
 
-        let target_column_id = self
-            .board
-            .as_ref()
-            .and_then(|b| b.columns.get(self.selected_target_column))
-            .map(|c| c.id.clone())
-            .ok_or("Invalid target column")?;
-
-        let card_service = CardService::new();
-        card_service.move_to(&self.board_path, &card_id, &target_column_id)?;
-
-        self.load_board()?;
-        self.state = AppState::CardDetail;
-        self.clear_error();
-
-        Ok(())
-    }
-
-    pub fn cancel_move_card(&mut self) {
-        self.state = AppState::CardDetail;
-        self.clear_error();
-    }
-
-    pub fn quick_move_card_left(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.card_selected {
-            if let Some(_board) = &self.board {
-                if self.selected_column > 0 {
-                    let target_column_idx = self.selected_column - 1;
-                    self.move_selected_card_to(target_column_idx)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn quick_move_card_right(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.card_selected {
-            if let Some(board) = &self.board {
-                if self.selected_column < board.columns.len().saturating_sub(1) {
-                    let target_column_idx = self.selected_column + 1;
-                    self.move_selected_card_to(target_column_idx)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn move_selected_card_to(
-        &mut self,
-        target_column_idx: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let card_id = self.selected_card_id().ok_or("No card selected")?;
         let target_column_id = self
             .board
             .as_ref()
@@ -477,30 +360,201 @@ impl App {
 
         let card_service = CardService::new();
         card_service.move_to(&self.board_path, &card_id, &target_column_id)?;
+
+        self.load_board()?;
+        self.view = View::CardDetail { card_id };
+        self.clear_error();
+
+        Ok(())
+    }
+
+    pub fn cancel_move_card(&mut self) {
+        if let View::MoveCard { card_id, .. } = &self.view {
+            self.view = View::CardDetail {
+                card_id: card_id.clone(),
+            };
+            self.clear_error();
+        }
+    }
+
+    pub fn quick_move_card_left(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.view.is_card_selected() {
+            if let Some(card_id) = self.view.selected_card_id().map(|s| s.to_string()) {
+                if let View::Board {
+                    selected_column, ..
+                } = &self.view
+                {
+                    if *selected_column > 0 {
+                        let target_column_idx = *selected_column - 1;
+                        self.move_selected_card_to(&card_id, target_column_idx)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn quick_move_card_right(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.view.is_card_selected() {
+            if let Some(card_id) = self.view.selected_card_id().map(|s| s.to_string()) {
+                if let View::Board {
+                    selected_column, ..
+                } = &self.view
+                {
+                    if let Some(board) = &self.board {
+                        if *selected_column < board.columns.len().saturating_sub(1) {
+                            let target_column_idx = *selected_column + 1;
+                            self.move_selected_card_to(&card_id, target_column_idx)?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn move_selected_card_to(
+        &mut self,
+        card_id: &str,
+        target_column_idx: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let target_column_id = self
+            .board
+            .as_ref()
+            .and_then(|b| b.columns.get(target_column_idx))
+            .map(|c| c.id.clone())
+            .ok_or("Invalid target column")?;
+
+        let card_service = CardService::new();
+        card_service.move_to(&self.board_path, card_id, &target_column_id)?;
         self.load_board()?;
 
-        self.selected_column = target_column_idx;
-
-        if let Some(index) = self.get_selected_card_index() {
-            self.selected_card = Some(index);
+        if let View::Board {
+            selected_column, ..
+        } = &mut self.view
+        {
+            *selected_column = target_column_idx;
         }
 
         Ok(())
     }
 
     pub fn deselect_card(&mut self) {
-        self.card_selected = false;
-        self.selected_card = None;
-        self.selected_card_id = None;
-        self.focus = Focus::Columns;
-        self.init_pre_selected_card();
+        if let View::Board { selection, .. } = &mut self.view {
+            if matches!(selection, Selection::Selected { .. }) {
+                *selection = Selection::None;
+            }
+        }
     }
 
-    fn clear_form(&mut self) {
-        self.form_data = CardFormData::default();
-        self.form_field = FormField::Title;
-        self.input_mode = InputMode::Normal;
-        self.editing_card_id = None;
+    pub fn start_edit_card(&mut self, card_id: String) {
+        if let Some(board) = &self.board {
+            if let Some(card) = board.get_card(&card_id) {
+                self.view = View::CardForm {
+                    mode: FormMode::Edit {
+                        card_id: card_id.clone(),
+                    },
+                };
+                self.form_data = Some(CardFormData::for_edit(
+                    card.title.clone(),
+                    card.description.clone(),
+                    card.assignee.clone(),
+                ));
+            }
+        }
+    }
+
+    pub fn start_delete_card(&mut self, card_id: String) {
+        self.view = View::ConfirmDelete { card_id };
+        self.clear_error();
+    }
+
+    pub fn confirm_delete_card(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let card_id = match &self.view {
+            View::ConfirmDelete { card_id } => card_id.clone(),
+            _ => return Err("Not in confirm delete view".into()),
+        };
+
+        let card_service = CardService::new();
+        card_service.delete(&self.board_path, &card_id)?;
+
+        self.load_board()?;
+        self.view = View::default();
+
+        Ok(())
+    }
+
+    pub fn cancel_delete_card(&mut self) {
+        if let View::ConfirmDelete { card_id } = &self.view {
+            self.view = View::CardDetail {
+                card_id: card_id.clone(),
+            };
+        }
+    }
+
+    pub fn move_selected_card_up(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.view.is_card_selected() {
+            return Ok(());
+        }
+
+        if let Some(card_id) = self.view.selected_card_id() {
+            let board_service = BoardService::new();
+            if board_service
+                .reorder_card_in_column(&self.board_path, card_id, MoveDirection::Up)
+                .is_ok()
+            {
+                self.load_board()?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn move_selected_card_down(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.view.is_card_selected() {
+            return Ok(());
+        }
+
+        if let Some(card_id) = self.view.selected_card_id() {
+            let board_service = BoardService::new();
+            if board_service
+                .reorder_card_in_column(&self.board_path, card_id, MoveDirection::Down)
+                .is_ok()
+            {
+                self.load_board()?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn get_selected_card_index(&self) -> Option<usize> {
+        if let (Some(board), Some(card_id)) = (&self.board, self.view.selected_card_id()) {
+            let selected_column = self.view.selected_column();
+            if let Some(column) = board.columns.get(selected_column) {
+                for (i, cid) in column.cards.iter().enumerate() {
+                    if cid == card_id {
+                        return Some(i);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    #[allow(dead_code)]
+    pub fn get_highlighted_card_index(&self) -> Option<usize> {
+        if let View::Board {
+            selection: Selection::Highlighted { card_index, .. },
+            ..
+        } = &self.view
+        {
+            Some(*card_index)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_form_data(&self) -> Option<&CardFormData> {
+        self.form_data.as_ref()
     }
 }
 
