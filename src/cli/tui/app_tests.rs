@@ -363,9 +363,6 @@ fn test_enter_cards_focus_transitions_to_card_detail() {
     app.enter_cards();
     assert_eq!(app.focus, Focus::Cards);
     assert_eq!(app.selected_card, Some(0));
-
-    app.enter_card_detail();
-    assert_eq!(app.state, AppState::Board);
     assert!(app.card_selected);
 
     app.open_card_detail();
@@ -373,7 +370,7 @@ fn test_enter_cards_focus_transitions_to_card_detail() {
 }
 
 #[test]
-fn test_first_enter_selects_card_without_details() {
+fn test_first_enter_selects_card_with_details() {
     let temp_dir = TempDir::new().unwrap();
     let board_service = BoardService::new();
     board_service
@@ -390,7 +387,6 @@ fn test_first_enter_selects_card_without_details() {
     app.selected_column = 0;
 
     app.enter_cards();
-    app.enter_card_detail();
 
     assert!(app.card_selected);
     assert_eq!(app.state, AppState::Board);
@@ -415,7 +411,6 @@ fn test_second_enter_deselects_card() {
     app.selected_column = 0;
 
     app.enter_cards();
-    app.enter_card_detail();
     assert!(app.card_selected);
 
     app.enter_card_detail();
@@ -443,7 +438,6 @@ fn test_quick_move_card_right() {
     app.selected_column = 0;
 
     app.enter_cards();
-    app.enter_card_detail();
     let initial_column = app.selected_column;
 
     app.quick_move_card_right().unwrap();
@@ -481,7 +475,6 @@ fn test_quick_move_card_left() {
     app.load_board().unwrap();
     app.selected_column = 1;
     app.enter_cards();
-    app.enter_card_detail();
 
     app.quick_move_card_left().unwrap();
 
@@ -515,7 +508,6 @@ fn test_esc_deselects_card() {
     app.selected_column = 0;
 
     app.enter_cards();
-    app.enter_card_detail();
     assert!(app.card_selected);
 
     app.deselect_card();
@@ -779,7 +771,6 @@ fn test_get_selected_card_index_after_quick_move_right() {
     app.selected_column = 0;
 
     app.enter_cards();
-    app.enter_card_detail();
 
     assert_eq!(app.get_selected_card_index(), Some(0));
     assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
@@ -813,7 +804,6 @@ fn test_get_selected_card_index_after_quick_move_left() {
     app.load_board().unwrap();
     app.selected_column = 1;
     app.enter_cards();
-    app.enter_card_detail();
 
     assert_eq!(app.get_selected_card_index(), Some(0));
     assert_eq!(app.selected_card_id.as_ref(), Some(&created.card_id));
@@ -851,7 +841,6 @@ fn test_get_selected_card_index_with_multiple_cards_after_move() {
 
     app.enter_cards();
     app.move_down();
-    app.enter_card_detail();
 
     assert_eq!(app.get_selected_card_index(), Some(1));
     assert_eq!(app.selected_card_id.as_ref(), Some(&card2.card_id));
@@ -882,7 +871,6 @@ fn test_exit_cards_clears_card_selection() {
     app.selected_column = 0;
 
     app.enter_cards();
-    app.enter_card_detail();
     assert!(app.card_selected);
 
     app.exit_cards();
@@ -910,7 +898,6 @@ fn test_enter_deselects_card_and_returns_to_column_focus() {
     app.selected_column = 0;
 
     app.enter_cards();
-    app.enter_card_detail();
     assert!(app.card_selected);
     assert_eq!(app.focus, Focus::Cards);
 

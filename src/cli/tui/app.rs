@@ -266,6 +266,7 @@ impl App {
         let idx = self.pre_selected_card.unwrap_or(0);
         self.selected_card = Some(idx);
         self.update_selected_card_id_from_index(idx);
+        self.card_selected = true;
     }
 
     pub fn enter_card_detail(&mut self) {
