@@ -125,6 +125,9 @@ fn handle_board_input(app: &mut App, key: &crossterm::event::KeyEvent) {
         KeyCode::Char('c') => {
             app.start_create_card();
         }
+        KeyCode::Char('d') => {
+            app.open_card_detail();
+        }
         KeyCode::Char('m') => {
             if app.get_selected_card_index().is_some() && !app.card_selected {
                 app.start_move_card();

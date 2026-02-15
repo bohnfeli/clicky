@@ -23,6 +23,8 @@ pub struct App {
     pub selected_card: Option<usize>,
     /// Currently selected card ID
     pub selected_card_id: Option<String>,
+    /// Pre-selected card index in column focus (highlighted before Enter)
+    pub pre_selected_card: Option<usize>,
     /// Currently selected target column for moving cards
     pub selected_target_column: usize,
     /// Current input string (for editing)
@@ -56,6 +58,7 @@ impl App {
             selected_column: 0,
             selected_card: None,
             selected_card_id: None,
+            pre_selected_card: None,
             selected_target_column: 0,
             input: String::new(),
             cursor_position: 0,
@@ -149,7 +152,9 @@ impl App {
             self.selected_column -= 1;
             self.selected_card = None;
             self.selected_card_id = None;
+            self.pre_selected_card = None;
             self.focus = Focus::Columns;
+            self.init_pre_selected_card();
         }
     }
 
@@ -159,13 +164,38 @@ impl App {
                 self.selected_column += 1;
                 self.selected_card = None;
                 self.selected_card_id = None;
+                self.pre_selected_card = None;
                 self.focus = Focus::Columns;
+                self.init_pre_selected_card();
             }
         }
     }
 
     pub fn move_up(&mut self) {
-        if let Some(card_idx) = self.get_selected_card_index() {
+        if self.focus == Focus::Columns {
+            if let Some(board) = &self.board {
+                if let Some(column) = board.columns.get(self.selected_column) {
+                    let card_count = board
+                        .cards
+                        .iter()
+                        .filter(|c| c.column_id == column.id)
+                        .count();
+
+                    if card_count > 0 {
+                        let new_idx = if let Some(current) = self.pre_selected_card {
+                            if current == 0 {
+                                card_count - 1
+                            } else {
+                                current - 1
+                            }
+                        } else {
+                            card_count - 1
+                        };
+                        self.pre_selected_card = Some(new_idx);
+                    }
+                }
+            }
+        } else if let Some(card_idx) = self.get_selected_card_index() {
             if card_idx > 0 {
                 let new_idx = card_idx - 1;
                 self.selected_card = Some(new_idx);
@@ -189,7 +219,30 @@ impl App {
     }
 
     pub fn move_down(&mut self) {
-        if let Some(board) = &self.board {
+        if self.focus == Focus::Columns {
+            if let Some(board) = &self.board {
+                if let Some(column) = board.columns.get(self.selected_column) {
+                    let card_count = board
+                        .cards
+                        .iter()
+                        .filter(|c| c.column_id == column.id)
+                        .count();
+
+                    if card_count > 0 {
+                        let new_idx = if let Some(current) = self.pre_selected_card {
+                            if current < card_count - 1 {
+                                current + 1
+                            } else {
+                                card_count - 1
+                            }
+                        } else {
+                            0
+                        };
+                        self.pre_selected_card = Some(new_idx);
+                    }
+                }
+            }
+        } else if let Some(board) = &self.board {
             if let Some(column) = board.columns.get(self.selected_column) {
                 let card_count = board
                     .cards
@@ -210,8 +263,10 @@ impl App {
 
     pub fn enter_cards(&mut self) {
         self.focus = Focus::Cards;
-        self.selected_card = Some(0);
-        self.update_selected_card_id_from_index(0);
+        let idx = self.pre_selected_card.unwrap_or(0);
+        self.selected_card = Some(idx);
+        self.update_selected_card_id_from_index(idx);
+        self.card_selected = true;
     }
 
     pub fn enter_card_detail(&mut self) {
@@ -219,7 +274,29 @@ impl App {
             if !self.card_selected {
                 self.card_selected = true;
             } else {
-                self.state = AppState::CardDetail;
+                self.deselect_card();
+            }
+        }
+    }
+
+    pub fn open_card_detail(&mut self) {
+        if self.focus == Focus::Columns {
+            self.enter_cards();
+        }
+        self.state = AppState::CardDetail;
+    }
+
+    fn init_pre_selected_card(&mut self) {
+        if let Some(board) = &self.board {
+            if let Some(column) = board.columns.get(self.selected_column) {
+                let card_count = board
+                    .cards
+                    .iter()
+                    .filter(|c| c.column_id == column.id)
+                    .count();
+                if card_count > 0 {
+                    self.pre_selected_card = Some(0);
+                }
             }
         }
     }
@@ -418,6 +495,7 @@ impl App {
         self.selected_card = None;
         self.selected_card_id = None;
         self.focus = Focus::Columns;
+        self.init_pre_selected_card();
     }
 
     fn clear_form(&mut self) {
