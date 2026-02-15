@@ -74,6 +74,40 @@ impl Column {
     pub fn card_count(&self) -> usize {
         self.cards.len()
     }
+
+    /// Moves a card up one position in this column.
+    ///
+    /// Returns true if the card was moved, false if the card was not found
+    /// or is already at the top of the column.
+    pub fn move_card_up(&mut self, card_id: &str) -> bool {
+        if let Some(pos) = self.cards.iter().position(|id| id == card_id) {
+            if pos > 0 {
+                self.cards.swap(pos, pos - 1);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Moves a card down one position in this column.
+    ///
+    /// Returns true if the card was moved, false if the card was not found
+    /// or is already at the bottom of the column.
+    pub fn move_card_down(&mut self, card_id: &str) -> bool {
+        if let Some(pos) = self.cards.iter().position(|id| id == card_id) {
+            if pos < self.cards.len() - 1 {
+                self.cards.swap(pos, pos + 1);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
 }
 
 #[cfg(test)]
