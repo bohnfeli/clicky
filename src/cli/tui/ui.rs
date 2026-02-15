@@ -12,7 +12,7 @@ use std::io;
 
 use crate::cli::tui::app::App;
 use crate::cli::tui::state::AppState;
-use crate::cli::tui::state::{Focus, FormField};
+use crate::cli::tui::state::{Focus, FormField, InputMode};
 
 /// Type alias for terminal
 #[allow(dead_code)]
@@ -35,8 +35,8 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
             _ => "? Help",
         },
         AppState::CardDetail => "e Edit | d Delete | m Move | q Back | ? Help",
-        AppState::CreateCard => "↑↓ Select field | i Edit | Enter Save | Esc Cancel | ? Help",
-        AppState::EditCard => "↑↓ Select field | i Edit | Enter Save | Esc Cancel | ? Help",
+        AppState::CreateCard => "↑↓ Select field | Type to edit | Enter Save | Esc Cancel | ? Help",
+        AppState::EditCard => "↑↓ Select field | Type to edit | Enter Save | Esc Cancel | ? Help",
         AppState::ConfirmDelete => "y Confirm | n Cancel",
         AppState::MoveCard => "h/l/← → Select column | Enter Confirm | Esc Cancel | ? Help",
         AppState::Help => "Esc Close help | ? Toggle",
@@ -73,6 +73,13 @@ fn draw_help_overlay(frame: &mut Frame) {
         Line::from("   ←/→   Move selected card between columns"),
         Line::from("   Esc   Deselect card / Exit selection"),
         Line::from("   c     Create new card"),
+        Line::from(""),
+        Line::from(" CREATE/EDIT CARD:"),
+        Line::from("   ↑/k   Previous field"),
+        Line::from("   ↓/j   Next field"),
+        Line::from("   Type  Enter edit mode automatically"),
+        Line::from("   Enter Save field / Submit card"),
+        Line::from("   Esc   Cancel / Exit editing"),
         Line::from(""),
         Line::from(" CARD DETAIL:"),
         Line::from("   e     Edit card"),
@@ -383,7 +390,13 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
             Style::default()
         });
 
-    let title_paragraph = Paragraph::new(app.form_data.title.as_str())
+    let title_text = if title_focused {
+        format!("{} ", app.form_data.title)
+    } else {
+        app.form_data.title.clone()
+    };
+
+    let title_paragraph = Paragraph::new(title_text.as_str())
         .block(title_block)
         .wrap(Wrap { trim: false });
     frame.render_widget(title_paragraph, chunks[1]);
@@ -405,7 +418,13 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
             Style::default()
         });
 
-    let desc_paragraph = Paragraph::new(app.form_data.description.as_str())
+    let desc_text = if desc_focused {
+        format!("{} ", app.form_data.description)
+    } else {
+        app.form_data.description.clone()
+    };
+
+    let desc_paragraph = Paragraph::new(desc_text.as_str())
         .block(desc_block)
         .wrap(Wrap { trim: false });
     frame.render_widget(desc_paragraph, chunks[2]);
@@ -427,10 +446,29 @@ fn draw_create_card_view(frame: &mut Frame, app: &App, area: Rect) {
             Style::default()
         });
 
-    let assignee_paragraph = Paragraph::new(app.form_data.assignee.as_str())
+    let assignee_text = if assignee_focused {
+        format!("{} ", app.form_data.assignee)
+    } else {
+        app.form_data.assignee.clone()
+    };
+
+    let assignee_paragraph = Paragraph::new(assignee_text.as_str())
         .block(assignee_block)
         .wrap(Wrap { trim: false });
     frame.render_widget(assignee_paragraph, chunks[3]);
+
+    // Set cursor position if in editing mode
+    if app.input_mode == InputMode::Editing {
+        let (field_area, input_text) = match app.form_field {
+            FormField::Title => (chunks[1], &app.form_data.title),
+            FormField::Description => (chunks[2], &app.form_data.description),
+            FormField::Assignee => (chunks[3], &app.form_data.assignee),
+        };
+
+        let cursor_x = field_area.x + input_text.len() as u16 + 1;
+        let cursor_y = field_area.y + 1;
+        frame.set_cursor(cursor_x, cursor_y);
+    }
 
     // Column (read-only, shows current selection)
     let column_name = app

@@ -13,6 +13,7 @@ pub use app::App;
 /// Run the TUI application.
 pub fn run(board_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
     use crossterm::{
+        cursor::Hide,
         event::{DisableMouseCapture, EnableMouseCapture},
         execute,
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -22,7 +23,7 @@ pub fn run(board_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error
 
     // Setup terminal
     enable_raw_mode()?;
-    execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture, Hide)?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = ratatui::Terminal::new(backend)?;
 
@@ -49,12 +50,26 @@ fn run_app<B: ratatui::backend::Backend>(
     app: &mut App,
     events: &mut events::EventHandler,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::cursor::{Hide, Show};
     use crossterm::event::KeyCode;
+    use crossterm::execute;
+    use std::io;
 
     let mut should_quit = false;
 
     loop {
         terminal.draw(|f| ui::draw(f, app))?;
+
+        let should_show_cursor = matches!(
+            app.state,
+            state::AppState::CreateCard | state::AppState::EditCard
+        ) && app.input_mode == state::InputMode::Editing;
+
+        if should_show_cursor {
+            execute!(io::stdout(), Show)?;
+        } else {
+            execute!(io::stdout(), Hide)?;
+        }
 
         if let Some(event) = events.try_next() {
             match event {
@@ -82,6 +97,7 @@ fn run_app<B: ratatui::backend::Backend>(
         }
 
         if should_quit {
+            execute!(io::stdout(), Show)?;
             return Ok(());
         }
     }
@@ -176,9 +192,6 @@ fn handle_create_card_input(app: &mut App, key: &crossterm::event::KeyEvent) {
             KeyCode::Down | KeyCode::Char('j') => {
                 app.next_form_field();
             }
-            KeyCode::Char('i') => {
-                app.input_mode = state::InputMode::Editing;
-            }
             KeyCode::Enter => {
                 let _ = app.submit_card();
             }
@@ -187,6 +200,11 @@ fn handle_create_card_input(app: &mut App, key: &crossterm::event::KeyEvent) {
             }
             KeyCode::Char('?') => {
                 app.toggle_help();
+            }
+            KeyCode::Char(c) => {
+                app.input_mode = state::InputMode::Editing;
+                let input = app.get_current_field_input_mut();
+                input.push(c);
             }
             _ => {}
         },
