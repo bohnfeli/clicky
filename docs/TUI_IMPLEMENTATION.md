@@ -74,11 +74,10 @@ Created PlantUML diagram:
 2. Navigate to desired column (←/→ or h/l)
 3. Press `c` to create card
 4. Navigate fields with ↑/↓ or k/j
-5. Press `i` to enter edit mode
-6. Type in each field
-7. Press `Enter` to save field and move to next
-8. Press `Enter` on last field to submit card
-9. Card is created in the currently selected column
+5. Type directly in each field (auto-enters edit mode)
+6. Press `Enter` to save field and move to next
+7. Press `Enter` on last field to submit card
+8. Card is created in the currently selected column
 
 ### Delete a Card in TUI
 
